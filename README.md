@@ -1,28 +1,56 @@
 # SpotiFLAC-Next Headless (Web UI + Docker)
 
-Run **SpotiFLAC-Next** on your home server in a headless Docker container with a **modern HTML Web Interface**. Search for music or simply copy & paste album links from **Amazon Music**, **Spotify**, **Tidal**, **Qobuz**, or **Deezer** to download lossless FLAC music directly to your server.
+A lightweight headless container and modern Web UI wrapper for **SpotiFLAC-Next**. Run your supporter build of SpotiFLAC-Next on a home server or NAS without a physical display or desktop environment.
+
+> [!IMPORTANT]
+> **Pure Wrapper Notice**: This repository contains **NO** downloading, audio ripping, DRM-bypassing, or scraping code. It is exclusively an open-source headless display wrapper, internal IPC bridge, and HTML Web UI. All searches, metadata retrieval, and downloads are performed entirely by the official, user-supplied **SpotiFLAC-Next** binary.
 
 ---
 
-## Features
+## Architecture: How It Works
 
-- 🌐 **Modern Web Interface**: Access from any browser on your home network (phone, laptop, tablet) at `http://<server-ip>:8080`.
-- 🔗 **Direct URL Paste Support**: Copy & paste album or track links directly from:
-  - **Amazon Music**: `https://music.amazon.com/albums/...` or `https://music.amazon.com/tracks/...`
-  - **Spotify**: `https://open.spotify.com/album/...` or `https://open.spotify.com/track/...`
-  - **Tidal / Qobuz / Deezer**: `https://tidal.com/album/...`, `https://www.qobuz.com/album/...`, etc.
-- 🔍 **Multi-Platform Search**: Search directly across Amazon Music, Spotify, Tidal, Qobuz, and Deezer from the search bar.
-- ⬇️ **1-Click Full Album Download**: View full tracklists with durations and download the whole album in lossless FLAC with a single click.
-- 📋 **Live Queue & Progress**: Track ongoing downloads and see download statuses update in real time.
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Browser / Client (Web UI at http://<server-ip>:8080)        │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ HTTP / REST
+┌──────────────────────────────▼───────────────────────────────┐
+│  web_server.py (Lightweight Web Server & API proxy)          │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ Internal Bridge (:8081)
+┌──────────────────────────────▼───────────────────────────────┐
+│  libbridge.so (C hook intercepting WebKitGTK WebView)        │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ Wails Go Bindings
+┌──────────────────────────────▼───────────────────────────────┐
+│  SpotiFLAC-Next (User-supplied AppImage running in Xvfb)    │
+│  └── Performs all searches, metadata fetching & FLAC saving  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+1. **Virtual Display**: SpotiFLAC-Next is a desktop GUI application built with Wails (Go + WebKitGTK). This container runs `Xvfb` (X Virtual Framebuffer) to provide an invisible virtual display so the application runs headlessly on any Linux server.
+2. **WebKit Bridge**: A minimal C library (`bridge.c`) hooks into the GTK WebKit view, translating web API requests into internal Wails function invocations.
+3. **Responsive Web UI**: A clean, single-page web interface (`web/index.html`) served by `web_server.py` allows managing the desktop app remotely from any browser on your home network.
+4. **100% Delegated Execution**: All streaming platform communication, search queries, format conversions, and downloads are executed exclusively by the official SpotiFLAC-Next binary provided by the user.
+
+---
+
+## Features (via Headless Web UI)
+
+- 🌐 **Modern Remote Web Interface**: Access from any browser on your home network (phone, laptop, tablet) at `http://<server-ip>:8080`.
+- 🔗 **Direct URL Paste Support**: Paste album or track links from Amazon Music, Spotify, Tidal, Qobuz, or Deezer directly into the web UI.
+- 🔍 **Multi-Platform Search UI**: Trigger multi-service searches in SpotiFLAC-Next directly from the web interface.
+- ⬇️ **1-Click Full Album Download**: Remote inspection of tracklists with one-click full album download triggers.
+- 📋 **Live Queue & Progress**: Monitor the desktop application's download queue and task states in real time.
 - 🔒 **Supporter Session Retention**: Mounts your existing supporter tokens (`~/.spotiflac-next`) so downloads function immediately without re-authenticating.
 
 ---
 
 ## Prerequisites
 
-**SpotiFLAC-Next** is maintained by [spotbye](https://github.com/spotbye/SpotiFLAC-Next) as a supporter build for project donors (via [coffee.spotbye.qzz.io](https://coffee.spotbye.qzz.io), Patreon, or other supported donation methods).
+**SpotiFLAC-Next** is developed and maintained by [spotbye](https://github.com/spotbye/SpotiFLAC-Next) as a supporter build for project donors (via [coffee.spotbye.qzz.io](https://coffee.spotbye.qzz.io), Patreon, or other supported donation methods).
 
-Because this binary is distributed to supporters, it is **not** bundled into this repository. You must supply your own Linux AppImage file to run the container.
+Because this binary is distributed to supporters, it is **not** included in this repository. You must supply your own Linux AppImage file to run the container.
 
 ---
 
