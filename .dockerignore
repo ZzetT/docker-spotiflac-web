@@ -1,0 +1,17 @@
+downloads/
+*.so
+libbridge.so
+appimage/
+*.AppImage
+squashfs-root/
+__pycache__/
+*.pyc
+.git
+.gitignore
+.dockerignore
+.env*
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

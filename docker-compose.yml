@@ -1,0 +1,25 @@
+services:
+  spotiflac-headless:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spotiflac-headless
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    shm_size: '1gb'
+    volumes:
+      # Mount supporter AppImage (place your SpotiFLAC-Next .AppImage here)
+      - ./appimage:/app/appimage:ro
+      # Mount host configuration & active supporter session
+      - ${HOME}/.spotiflac-next:/root/.spotiflac-next
+      # Destination directory where downloaded FLAC albums will be stored
+      - ./downloads:/root/Downloads
+      # Live mounts for web UI and server
+      - ./web:/app/web
+      - ./web_server.py:/app/web_server.py
+      - ./entrypoint.sh:/app/entrypoint.sh
+    environment:
+      - PORT=8080
+      - BRIDGE_PORT=8081
+      - WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1

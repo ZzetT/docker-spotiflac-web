@@ -1,0 +1,30 @@
+# Download destination
+downloads/
+
+# Shared libraries and build artifacts
+*.so
+libbridge.so
+
+# Supporter AppImage binaries (downloaded by users who donate to upstream author)
+*.AppImage
+appimage/*.AppImage
+squashfs-root/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/

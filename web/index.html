@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpotiFLAC Web — Lossless Music Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(24, 24, 27, 0.5);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(82, 82, 91, 0.6);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col selection:bg-brand-500 selection:text-black">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="sticky top-0 z-50 backdrop-blur-md bg-zinc-950/80 border-b border-zinc-800/80 px-4 lg:px-8 py-3.5 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-950/40">
+        <svg class="w-5 h-5 text-black font-extrabold" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="font-extrabold text-base tracking-tight">SpotiFLAC <span class="text-brand-400">Web</span></span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-brand-400 border border-emerald-500/20">Lossless FLAC</span>
+        </div>
+        <p class="text-xs text-zinc-400 hidden sm:block">Headless Home Server Downloader</p>
+      </div>
+    </div>
+
+    <!-- SERVER STATUS & BADGES -->
+    <div class="flex items-center space-x-3">
+      <div id="statusBadge" class="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-medium">
+        <span class="relative flex h-2 w-2">
+          <span id="statusPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span id="statusDot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span id="statusText" class="text-zinc-300">Connecting...</span>
+      </div>
+
+      <!-- SETTINGS BUTTON -->
+      <button onclick="openSettingsModal()" class="relative flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium transition text-zinc-300 hover:text-white">
+        <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span>Settings</span>
+      </button>
+
+      <!-- QUEUE BUTTON (Toggles Queue View) -->
+      <button id="headerQueueBtn" onclick="toggleQueueView()" class="relative flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium transition text-zinc-300 hover:text-white">
+        <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        <span>Queue</span>
+        <span id="queueCountBadge" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-brand-500 text-black">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- SEARCH & URL INPUT CARD -->
+    <section class="rounded-2xl bg-zinc-900/90 border border-zinc-800/80 p-5 lg:p-7 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+      <div class="absolute -right-20 -top-20 w-72 h-72 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+      <h1 class="text-xl sm:text-2xl font-bold tracking-tight mb-2">Search or Paste Music Link</h1>
+      <p class="text-sm text-zinc-400 mb-5">
+        Paste any album or track URL from <strong class="text-zinc-200">Amazon Music</strong>, <strong class="text-zinc-200">Tidal</strong>, <strong class="text-zinc-200">Qobuz</strong>, <strong class="text-zinc-200">Deezer</strong>, or <strong class="text-zinc-200">Spotify</strong>.
+      </p>
+
+      <form id="searchForm" onsubmit="handleSearchOrFetch(event)" class="space-y-3">
+        <div class="flex flex-col sm:flex-row gap-2.5">
+          <div class="relative flex-1">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
+            <input
+              type="text"
+              id="mainInput"
+              required
+              placeholder="Paste Amazon Music/Spotify URL or search track/album name..."
+              class="w-full pl-11 pr-10 py-3 rounded-xl bg-zinc-950 border border-zinc-800 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 text-sm placeholder-zinc-500 text-zinc-100 transition outline-none"
+            />
+            <button
+              type="button"
+              onclick="clearInput()"
+              id="clearBtn"
+              class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-500 hover:text-zinc-300"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- PROVIDER SELECTOR DROPDOWN (Matches AppImage) -->
+          <div class="relative">
+            <select id="platformSelect" onchange="onProviderChanged()" class="w-full sm:w-auto h-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-200 font-semibold focus:border-brand-500 outline-none cursor-pointer pr-9 appearance-none hover:bg-zinc-900 transition">
+              <option value="amazon">Amazon Music</option>
+              <option value="tidal">Tidal</option>
+              <option value="qobuz">Qobuz</option>
+              <option value="deezer">Deezer</option>
+              <option value="spotify">Spotify</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- SUBMIT BUTTON -->
+          <button
+            type="submit"
+            id="submitBtn"
+            class="flex items-center justify-center space-x-2 px-6 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 active:scale-[0.98] text-black font-semibold text-sm transition shadow-lg shadow-brand-500/20 disabled:opacity-50"
+          >
+            <span id="submitSpinner" class="hidden animate-spin">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+            </span>
+            <span id="submitText">Fetch / Search</span>
+          </button>
+        </div>
+
+        <!-- RECENT FETCHES CAROUSEL (Dynamic history like native AppImage) -->
+        <div id="recentFetchesSection" class="hidden pt-3 border-t border-zinc-800/60 mt-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Recent Fetches</span>
+            <button type="button" onclick="clearRecentFetches()" class="text-[11px] text-zinc-500 hover:text-zinc-300 transition">Clear history</button>
+          </div>
+          <div id="recentFetchesGrid" class="flex gap-2.5 overflow-x-auto pb-1.5 custom-scrollbar">
+            <!-- Dynamic recent cards injected here -->
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- CONTENT TABS -->
+    <div class="flex items-center space-x-2 border-b border-zinc-800/80 pb-2">
+      <button onclick="switchTab('albumTab')" id="tabBtn_album" class="px-4 py-2 rounded-lg text-sm font-semibold transition bg-zinc-800 text-zinc-100">
+        Album Details
+      </button>
+      <button onclick="switchTab('searchTab')" id="tabBtn_search" class="px-4 py-2 rounded-lg text-sm font-semibold transition text-zinc-400 hover:text-zinc-200">
+        Search Results
+      </button>
+    </div>
+
+    <!-- TAB 1: ALBUM DETAILS VIEW -->
+    <section id="albumTab" class="space-y-6">
+      <div id="albumEmptyPlaceholder" class="p-12 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
+        <div class="w-12 h-12 rounded-full bg-zinc-800/60 flex items-center justify-center mx-auto mb-3 text-zinc-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+          </svg>
+        </div>
+        <p class="text-zinc-300 font-medium">No album loaded</p>
+        <p class="text-xs text-zinc-500 mt-1">Paste an Amazon Music, Tidal, or Spotify album link above to view tracklist and download in FLAC.</p>
+      </div>
+
+      <!-- ALBUM CARD (Rendered dynamically) -->
+      <div id="albumCard" class="hidden rounded-2xl bg-zinc-900/90 border border-zinc-800/80 p-6 lg:p-8 backdrop-blur-xl">
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8">
+          <img id="albumArt" src="" alt="Cover" class="w-40 h-40 sm:w-48 sm:h-48 rounded-xl shadow-2xl object-cover border border-zinc-700/50 flex-shrink-0"/>
+          
+          <div class="flex-1 text-center sm:text-left space-y-2">
+            <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <span id="albumSourceBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">AMAZON MUSIC</span>
+              <span id="albumYearBadge" class="text-xs text-zinc-400"></span>
+              <span id="albumTracksBadge" class="text-xs text-zinc-400"></span>
+            </div>
+
+            <h2 id="albumTitle" class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white"></h2>
+            <p id="albumArtist" class="text-base text-zinc-300 font-medium"></p>
+            
+            <div class="pt-4 flex flex-wrap items-center justify-center sm:justify-start gap-3">
+              <button
+                onclick="downloadCurrentAlbum()"
+                id="downloadAlbumBtn"
+                class="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-black font-bold text-sm shadow-lg shadow-brand-500/20 active:scale-95 transition"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                <span>Download Entire Album (FLAC)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TRACKLIST TABLE (Cleaned of redundant artist column) -->
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr class="border-b border-zinc-800/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+                <th class="py-3 px-3 w-12 text-center">#</th>
+                <th class="py-3 px-3">Title</th>
+                <th class="py-3 px-3 w-20 text-right">Time</th>
+                <th class="py-3 px-3 w-28 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="tracklistBody" class="divide-y divide-zinc-800/40 font-medium">
+              <!-- Tracks injected here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: SEARCH RESULTS VIEW -->
+    <section id="searchTab" class="hidden space-y-6">
+      <div id="searchEmptyPlaceholder" class="p-12 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30">
+        <p class="text-zinc-400">Search results will appear here.</p>
+      </div>
+
+      <!-- ALBUMS GRID -->
+      <div id="searchResultsSection" class="hidden space-y-4">
+        <h3 class="text-lg font-bold tracking-tight text-zinc-200">Matching Albums</h3>
+        <div id="searchAlbumsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <!-- Album cards injected here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: QUEUE & HISTORY VIEW -->
+    <section id="queueTab" class="hidden space-y-6">
+      <div class="rounded-2xl bg-zinc-900/90 border border-zinc-800/80 p-6 backdrop-blur-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/80 pb-4 gap-3">
+          <div>
+            <h3 class="text-lg font-bold tracking-tight text-white">Active Downloads & History</h3>
+            <p class="text-xs text-zinc-400 mt-0.5">Files are written directly into your server's mounted downloads directory.</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="clearFinishedTasks()" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 border border-zinc-700/50 text-xs font-semibold transition flex items-center space-x-1.5 text-zinc-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              <span>Clear Finished</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter tabs for Queue -->
+        <div class="flex items-center space-x-2 border-b border-zinc-800/60 pb-3 text-xs">
+          <button onclick="setQueueFilter('all')" id="qFilter_all" class="px-3 py-1 rounded-md bg-zinc-800 text-white font-semibold transition">All (<span id="qCount_all">0</span>)</button>
+          <button onclick="setQueueFilter('active')" id="qFilter_active" class="px-3 py-1 rounded-md hover:bg-zinc-800 text-zinc-400 font-semibold transition">Active (<span id="qCount_active">0</span>)</button>
+          <button onclick="setQueueFilter('completed')" id="qFilter_completed" class="px-3 py-1 rounded-md hover:bg-zinc-800 text-zinc-400 font-semibold transition">Completed (<span id="qCount_completed">0</span>)</button>
+          <button onclick="setQueueFilter('failed')" id="qFilter_failed" class="px-3 py-1 rounded-md hover:bg-zinc-800 text-zinc-400 font-semibold transition">Failed (<span id="qCount_failed">0</span>)</button>
+        </div>
+
+        <div id="queueList" class="space-y-2.5">
+          <p class="text-zinc-500 text-xs py-4 text-center">No downloads recorded in this session.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <div class="flex items-center space-x-2">
+          <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <h3 class="text-base font-bold text-white">SpotiFLAC Settings</h3>
+        </div>
+        <button onclick="closeSettingsModal()" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Tabs -->
+      <div class="flex items-center space-x-2 px-6 pt-3 border-b border-zinc-800 text-xs">
+        <button id="setTabBtn_core" onclick="switchSettingsTab('core')" class="px-3 py-1.5 rounded-t-lg bg-zinc-800 text-white font-semibold transition">General & Output</button>
+        <button id="setTabBtn_json" onclick="switchSettingsTab('json')" class="px-3 py-1.5 rounded-t-lg text-zinc-400 hover:text-white font-semibold transition">Advanced Config (Raw JSON)</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+        <!-- Core Settings Form -->
+        <div id="settingsCoreView" class="space-y-4 text-sm">
+          <div>
+            <label class="block text-xs font-semibold text-zinc-400 mb-1">Download Directory (Inside Container)</label>
+            <input type="text" id="setting_downloadPath" class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-200 text-sm focus:border-brand-500 outline-none"/>
+            <p class="text-[11px] text-zinc-500 mt-1">Mounted to your host's downloads folder. Standard: <code class="text-zinc-400">/root/Downloads</code> or <code class="text-zinc-400">/mnt/music/</code>.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-zinc-400 mb-1">Folder Structure Template</label>
+            <input type="text" id="setting_folderTemplate" placeholder="{album_artist}/{album}" class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-200 text-sm focus:border-brand-500 outline-none"/>
+            <p class="text-[11px] text-zinc-500 mt-1">Organizes files into subfolders (e.g. <code class="text-zinc-400">{artist}/{album}</code> or <code class="text-zinc-400">{album_artist}/{year_prefix}{album}</code>). Leave blank for flat output.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-zinc-400 mb-1">Filename Template</label>
+            <input type="text" id="setting_filenameTemplate" class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-200 text-sm focus:border-brand-500 outline-none"/>
+            <p class="text-[11px] text-zinc-500 mt-1">Available variables: <code class="text-zinc-400">{track}</code>, <code class="text-zinc-400">{title}</code>, <code class="text-zinc-400">{artist}</code>, <code class="text-zinc-400">{album}</code></p>
+          </div>
+
+          <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950 border border-zinc-800/80">
+            <div>
+              <span class="font-medium text-zinc-200">Prepend Track Number</span>
+              <p class="text-xs text-zinc-500">Includes track index (e.g. 01, 02) before filename</p>
+            </div>
+            <input type="checkbox" id="setting_trackNumber" class="w-4 h-4 rounded text-brand-500 focus:ring-brand-500 bg-zinc-900 border-zinc-700 cursor-pointer"/>
+          </div>
+        </div>
+
+        <!-- Advanced Raw JSON Editor -->
+        <div id="settingsJsonView" class="hidden space-y-2">
+          <p class="text-xs text-zinc-400">Directly inspect and edit all configuration values in <code class="text-brand-400">config.json</code>. This guarantees 100% future-proof compatibility with new SpotiFLAC versions.</p>
+          <textarea id="setting_rawJson" rows="14" class="w-full font-mono text-xs p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-emerald-400 outline-none focus:border-brand-500 custom-scrollbar"></textarea>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-4 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between">
+        <span id="settingsSaveStatus" class="text-xs text-zinc-400"></span>
+        <div class="flex items-center space-x-2">
+          <button onclick="closeSettingsModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300 transition">Cancel</button>
+          <button onclick="saveAllSettings()" id="saveSettingsBtn" class="px-5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-xs font-bold text-black transition">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition duration-300 pointer-events-none px-4 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center space-x-2 border">
+    <span id="toastIcon"></span>
+    <span id="toastMsg"></span>
+  </div>
+
+  <script>
+    let currentAlbumData = null;
+    let pollInterval = null;
+    let lastContentTab = "albumTab";
+
+    // Initialize
+    document.addEventListener("DOMContentLoaded", () => {
+      checkStatus();
+      setInterval(checkStatus, 10000);
+      setInterval(refreshQueue, 3000);
+
+      // Restore preferred provider
+      const savedProvider = localStorage.getItem("spotiflac_provider");
+      if (savedProvider) {
+        document.getElementById("platformSelect").value = savedProvider;
+      }
+      loadRecentFetches();
+    });
+
+    function onProviderChanged() {
+      const p = document.getElementById("platformSelect").value;
+      localStorage.setItem("spotiflac_provider", p);
+    }
+
+    function loadRecentFetches() {
+      const sec = document.getElementById("recentFetchesSection");
+      const grid = document.getElementById("recentFetchesGrid");
+      let list = [];
+      try {
+        list = JSON.parse(localStorage.getItem("spotiflac_recent") || "[]");
+      } catch(e) {}
+
+      if (!list || list.length === 0) {
+        sec.classList.add("hidden");
+        return;
+      }
+
+      sec.classList.remove("hidden");
+      grid.innerHTML = "";
+      list.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "flex-shrink-0 flex items-center space-x-2.5 p-1.5 pr-3 rounded-xl bg-zinc-950 border border-zinc-800/80 hover:border-zinc-700 cursor-pointer transition group";
+        div.onclick = () => quickFill(item.url || item.name, item.platform || "amazon");
+        div.innerHTML = `
+          <img src="${item.image || 'https://placehold.co/80x80/18181b/71717a?text=Cover'}" class="w-9 h-9 rounded-lg object-cover border border-zinc-800 group-hover:scale-105 transition flex-shrink-0"/>
+          <div class="text-left overflow-hidden">
+            <div class="text-xs font-semibold text-zinc-200 group-hover:text-brand-400 transition truncate max-w-[150px]">${escapeHtml(item.name)}</div>
+            <div class="text-[10px] text-zinc-500 truncate max-w-[150px]">${escapeHtml(item.artist || "")}</div>
+          </div>
+        `;
+        grid.appendChild(div);
+      });
+    }
+
+    function saveRecentFetch(item) {
+      try {
+        let list = JSON.parse(localStorage.getItem("spotiflac_recent") || "[]");
+        list = list.filter(x => x.name !== item.name && x.url !== item.url);
+        list.unshift(item);
+        if (list.length > 7) list = list.slice(0, 7);
+        localStorage.setItem("spotiflac_recent", JSON.stringify(list));
+        loadRecentFetches();
+      } catch(e) {}
+    }
+
+    function clearRecentFetches() {
+      localStorage.removeItem("spotiflac_recent");
+      loadRecentFetches();
+    }
+
+    async function checkStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        const badge = document.getElementById("statusBadge");
+        const dot = document.getElementById("statusDot");
+        const pulse = document.getElementById("statusPulse");
+        const text = document.getElementById("statusText");
+
+        if (data.success) {
+          dot.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+          pulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+          
+          let supporterText = "Online";
+          if (data.supporter && data.supporter.email) {
+            supporterText = `${data.supporter.email} (${data.supporter.plate || "Supporter"})`;
+          }
+          text.textContent = supporterText;
+        } else {
+          dot.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+          pulse.className = "hidden";
+          text.textContent = "WebView Initializing...";
+        }
+      } catch (e) {
+        document.getElementById("statusDot").className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+        document.getElementById("statusPulse").className = "hidden";
+        document.getElementById("statusText").textContent = "Offline / Error";
+      }
+    }
+
+    function switchTab(tabId) {
+      if (tabId !== "queueTab") {
+        lastContentTab = tabId;
+      }
+      ["albumTab", "searchTab", "queueTab"].forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+      });
+      document.getElementById(tabId).classList.remove("hidden");
+
+      // Content tab buttons styling
+      ["album", "search"].forEach(name => {
+        const btn = document.getElementById(`tabBtn_${name}`);
+        if (btn) {
+          if (`${name}Tab` === tabId) {
+            btn.className = "px-4 py-2 rounded-lg text-sm font-semibold transition bg-zinc-800 text-zinc-100";
+          } else {
+            btn.className = "px-4 py-2 rounded-lg text-sm font-semibold transition text-zinc-400 hover:text-zinc-200";
+          }
+        }
+      });
+
+      // Header Queue button styling
+      const qBtn = document.getElementById("headerQueueBtn");
+      if (qBtn) {
+        if (tabId === "queueTab") {
+          qBtn.className = "relative flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-brand-500 text-black font-semibold text-xs transition shadow-lg shadow-brand-500/20";
+        } else {
+          qBtn.className = "relative flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium transition text-zinc-300 hover:text-white";
+        }
+      }
+    }
+
+    function toggleQueueView() {
+      const qTab = document.getElementById("queueTab");
+      if (qTab.classList.contains("hidden")) {
+        switchTab("queueTab");
+      } else {
+        switchTab(lastContentTab || "albumTab");
+      }
+    }
+
+    function quickFill(val, platform = "auto") {
+      const input = document.getElementById("mainInput");
+      input.value = val;
+      document.getElementById("clearBtn").classList.remove("hidden");
+      if (platform !== "auto") {
+        document.getElementById("platformSelect").value = platform;
+      }
+      handleSearchOrFetch(new Event("submit"));
+    }
+
+    function clearInput() {
+      const input = document.getElementById("mainInput");
+      input.value = "";
+      document.getElementById("clearBtn").classList.add("hidden");
+      input.focus();
+    }
+
+    document.getElementById("mainInput").addEventListener("input", (e) => {
+      document.getElementById("clearBtn").classList.toggle("hidden", !e.target.value);
+    });
+
+    async function handleSearchOrFetch(e) {
+      e.preventDefault();
+      const val = document.getElementById("mainInput").value.trim();
+      const platform = document.getElementById("platformSelect").value;
+      if (!val) return;
+
+      const submitBtn = document.getElementById("submitBtn");
+      const submitText = document.getElementById("submitText");
+      const submitSpinner = document.getElementById("submitSpinner");
+
+      submitBtn.disabled = true;
+      submitText.textContent = "Processing...";
+      submitSpinner.classList.remove("hidden");
+
+      try {
+        const isUrl = val.startsWith("http://") || val.startsWith("https://") || val.startsWith("spotify:");
+        
+        if (isUrl) {
+          showToast("Fetching album metadata...", "info");
+          const res = await fetch("/api/fetch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: val })
+          });
+          const data = await res.json();
+          
+          if (!data.success) {
+            showToast(data.error || "Failed to fetch URL metadata", "error");
+          } else {
+            renderAlbum(data);
+            switchTab("albumTab");
+            showToast(`Loaded "${data.album_info.name}" (${data.track_list.length} tracks)`, "success");
+          }
+        } else {
+          showToast(`Searching for "${val}"...`, "info");
+          const res = await fetch("/api/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: val, platform: platform === "auto" ? "spotify" : platform, limit: 15 })
+          });
+          const data = await res.json();
+          
+          if (!data.success) {
+            showToast(data.error || "Search query failed", "error");
+          } else {
+            renderSearchResults(data.result);
+            switchTab("searchTab");
+          }
+        }
+      } catch (err) {
+        showToast(`Error: ${err.message}`, "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitText.textContent = "Fetch / Search";
+        submitSpinner.classList.add("hidden");
+      }
+    }
+
+    function renderAlbum(data) {
+      currentAlbumData = data;
+      const album = data.album_info;
+      const tracks = data.track_list || [];
+
+      document.getElementById("albumEmptyPlaceholder").classList.add("hidden");
+      const card = document.getElementById("albumCard");
+      card.classList.remove("hidden");
+
+      document.getElementById("albumArt").src = album.images || "https://placehold.co/400x400/18181b/71717a?text=Cover";
+      document.getElementById("albumTitle").textContent = album.name;
+      document.getElementById("albumArtist").textContent = album.artists;
+      document.getElementById("albumYearBadge").textContent = album.release_date ? album.release_date.split("-")[0] : "";
+      document.getElementById("albumTracksBadge").textContent = `${tracks.length} tracks`;
+      
+      const sourceBadge = document.getElementById("albumSourceBadge");
+      sourceBadge.textContent = (data.source || "FLAC").toUpperCase();
+
+      // Record in Recent Fetches
+      saveRecentFetch({
+        name: album.name,
+        artist: album.artists,
+        image: album.images,
+        url: document.getElementById("mainInput").value.trim(),
+        platform: document.getElementById("platformSelect").value
+      });
+
+      const tbody = document.getElementById("tracklistBody");
+      tbody.innerHTML = "";
+
+      tracks.forEach((t, idx) => {
+        const mins = Math.floor((t.duration_ms || 0) / 60000);
+        const secs = Math.floor(((t.duration_ms || 0) % 60000) / 1000).toString().padStart(2, "0");
+        const isFeatured = t.artists && t.artists !== album.artists;
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-zinc-800/40 transition";
+        tr.innerHTML = `
+          <td class="py-3 px-3 text-center text-zinc-500 font-mono text-xs">${t.track_number || idx + 1}</td>
+          <td class="py-3 px-3">
+            <div class="text-zinc-100 font-medium">${escapeHtml(t.name)}</div>
+            ${isFeatured ? `<div class="text-xs text-zinc-400 mt-0.5">${escapeHtml(t.artists || "")}</div>` : ''}
+          </td>
+          <td class="py-3 px-3 text-right text-zinc-400 font-mono text-xs">${mins}:${secs}</td>
+          <td class="py-3 px-3 text-center">
+            <button
+              onclick="downloadSingleTrack(${idx})"
+              id="dlBtn_${idx}"
+              class="px-2.5 py-1 rounded-md bg-zinc-800 hover:bg-brand-500 hover:text-black text-xs font-semibold transition"
+            >
+              ⬇ FLAC
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderSearchResults(results) {
+      const albums = results.albums || [];
+      const grid = document.getElementById("searchAlbumsGrid");
+      grid.innerHTML = "";
+
+      if (albums.length === 0) {
+        document.getElementById("searchEmptyPlaceholder").classList.remove("hidden");
+        document.getElementById("searchResultsSection").classList.add("hidden");
+        return;
+      }
+
+      document.getElementById("searchEmptyPlaceholder").classList.add("hidden");
+      document.getElementById("searchResultsSection").classList.remove("hidden");
+
+      albums.forEach(a => {
+        const card = document.createElement("div");
+        card.className = "group rounded-xl bg-zinc-900 border border-zinc-800/80 p-3 hover:border-zinc-700 transition flex flex-col justify-between";
+        card.innerHTML = `
+          <div>
+            <div class="aspect-square w-full rounded-lg overflow-hidden bg-zinc-950 mb-2.5 border border-zinc-800">
+              <img src="${a.images || 'https://placehold.co/300x300/18181b/71717a?text=Cover'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+            </div>
+            <h4 class="font-bold text-sm text-zinc-100 line-clamp-1">${escapeHtml(a.name)}</h4>
+            <p class="text-xs text-zinc-400 line-clamp-1 mt-0.5">${escapeHtml(a.artists || "")}</p>
+          </div>
+          <button
+            onclick="quickFill('${a.external_urls || a.id}')"
+            class="mt-3 w-full py-1.5 rounded-lg bg-zinc-800 hover:bg-brand-500 hover:text-black text-xs font-semibold text-zinc-200 transition"
+          >
+            Inspect Album
+          </button>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function downloadSingleTrack(idx) {
+      if (!currentAlbumData || !currentAlbumData.track_list[idx]) return;
+      const track = currentAlbumData.track_list[idx];
+      const btn = document.getElementById(`dlBtn_${idx}`);
+
+      btn.disabled = true;
+      btn.textContent = "Starting...";
+      btn.className = "px-2.5 py-1 rounded-md bg-zinc-700 text-xs font-semibold text-zinc-300 animate-pulse";
+
+      try {
+        const res = await fetch("/api/download-track", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            track: track,
+            album: currentAlbumData.album_info
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Started download: ${track.name}`, "success");
+          btn.textContent = "Queued";
+          switchTab("queueTab");
+        } else {
+          showToast(`Download failed: ${data.error}`, "error");
+          btn.textContent = "Retry";
+          btn.disabled = false;
+        }
+      } catch (err) {
+        showToast(err.message, "error");
+        btn.disabled = false;
+      }
+    }
+
+    async function downloadCurrentAlbum() {
+      if (!currentAlbumData || !currentAlbumData.track_list) return;
+      const btn = document.getElementById("downloadAlbumBtn");
+      btn.disabled = true;
+      btn.innerHTML = `<span>Starting Album Download...</span>`;
+
+      try {
+        const res = await fetch("/api/download-album", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            album: currentAlbumData.album_info,
+            tracks: currentAlbumData.track_list
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Queued ${data.total_tracks} tracks for download!`, "success");
+          switchTab("queueTab");
+        } else {
+          showToast(`Album download error: ${data.error}`, "error");
+        }
+      } catch (err) {
+        showToast(err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <span>Download Entire Album (FLAC)</span>
+        `;
+      }
+    }
+
+    let queueFilter = "all";
+    let allSettingsData = {};
+
+    function setQueueFilter(filter) {
+      queueFilter = filter;
+      ["all", "active", "completed", "failed"].forEach(f => {
+        const btn = document.getElementById(`qFilter_${f}`);
+        if (f === filter) {
+          btn.className = "px-3 py-1 rounded-md bg-zinc-800 text-white font-semibold transition";
+        } else {
+          btn.className = "px-3 py-1 rounded-md hover:bg-zinc-800 text-zinc-400 font-semibold transition";
+        }
+      });
+      refreshQueue();
+    }
+
+    async function clearFinishedTasks() {
+      try {
+        const res = await fetch("/api/queue/clear", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          showToast("Cleared finished tasks", "info");
+          refreshQueue();
+        }
+      } catch (e) {
+        showToast("Failed to clear tasks", "error");
+      }
+    }
+
+    async function openSettingsModal() {
+      document.getElementById("settingsModal").classList.remove("hidden");
+      document.getElementById("settingsSaveStatus").textContent = "Loading configuration...";
+      switchSettingsTab("core");
+
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (data.success) {
+          allSettingsData = data.settings || {};
+          // Populate core fields
+          document.getElementById("setting_downloadPath").value = allSettingsData.downloadPath || "/root/Downloads";
+          document.getElementById("setting_folderTemplate").value = allSettingsData.folderTemplate !== undefined ? allSettingsData.folderTemplate : "{album_artist}/{album}";
+          document.getElementById("setting_filenameTemplate").value = allSettingsData.filenameTemplate || "{title}";
+          document.getElementById("setting_trackNumber").checked = Boolean(allSettingsData.trackNumber);
+
+          // Populate raw JSON
+          document.getElementById("setting_rawJson").value = JSON.stringify(allSettingsData, null, 2);
+          document.getElementById("settingsSaveStatus").textContent = `Loaded ${Object.keys(allSettingsData).length} settings keys`;
+        } else {
+          document.getElementById("settingsSaveStatus").textContent = "Error loading settings";
+        }
+      } catch (e) {
+        document.getElementById("settingsSaveStatus").textContent = `Error: ${e.message}`;
+      }
+    }
+
+    function closeSettingsModal() {
+      document.getElementById("settingsModal").classList.add("hidden");
+    }
+
+    function switchSettingsTab(tab) {
+      if (tab === "core") {
+        document.getElementById("settingsCoreView").classList.remove("hidden");
+        document.getElementById("settingsJsonView").classList.add("hidden");
+        document.getElementById("setTabBtn_core").className = "px-3 py-1.5 rounded-t-lg bg-zinc-800 text-white font-semibold transition";
+        document.getElementById("setTabBtn_json").className = "px-3 py-1.5 rounded-t-lg text-zinc-400 hover:text-white font-semibold transition";
+      } else {
+        // Sync core inputs to json before switching
+        syncCoreToJson();
+        document.getElementById("settingsCoreView").classList.add("hidden");
+        document.getElementById("settingsJsonView").classList.remove("hidden");
+        document.getElementById("setTabBtn_json").className = "px-3 py-1.5 rounded-t-lg bg-zinc-800 text-white font-semibold transition";
+        document.getElementById("setTabBtn_core").className = "px-3 py-1.5 rounded-t-lg text-zinc-400 hover:text-white font-semibold transition";
+      }
+    }
+
+    function syncCoreToJson() {
+      allSettingsData.downloadPath = document.getElementById("setting_downloadPath").value.trim();
+      allSettingsData.folderTemplate = document.getElementById("setting_folderTemplate").value.trim();
+      allSettingsData.filenameTemplate = document.getElementById("setting_filenameTemplate").value.trim();
+      allSettingsData.trackNumber = document.getElementById("setting_trackNumber").checked;
+      allSettingsData.directLinkSearchProvider = document.getElementById("platformSelect").value;
+      document.getElementById("setting_rawJson").value = JSON.stringify(allSettingsData, null, 2);
+    }
+
+    async function saveAllSettings() {
+      const btn = document.getElementById("saveSettingsBtn");
+      const statusEl = document.getElementById("settingsSaveStatus");
+      btn.disabled = true;
+      statusEl.textContent = "Saving settings...";
+
+      try {
+        let payload = {};
+        const jsonViewVisible = !document.getElementById("settingsJsonView").classList.contains("hidden");
+        if (jsonViewVisible) {
+          try {
+            payload = JSON.parse(document.getElementById("setting_rawJson").value);
+          } catch (err) {
+            statusEl.textContent = "Invalid JSON in editor!";
+            showToast("Invalid JSON syntax", "error");
+            btn.disabled = false;
+            return;
+          }
+        } else {
+          syncCoreToJson();
+          payload = allSettingsData;
+        }
+
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: payload })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("Settings saved successfully!", "success");
+          statusEl.textContent = "Settings saved!";
+          setTimeout(closeSettingsModal, 800);
+        } else {
+          showToast(`Failed to save: ${data.error}`, "error");
+          statusEl.textContent = "Failed to save.";
+        }
+      } catch (e) {
+        showToast(e.message, "error");
+        statusEl.textContent = `Error: ${e.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function refreshQueue() {
+      try {
+        const res = await fetch("/api/queue");
+        const data = await res.json();
+        if (!data.success) return;
+
+        const container = document.getElementById("queueList");
+        const recent = data.recent_tasks || [];
+
+        const activeTasks = recent.filter(t => t.status === "pending" || t.status === "downloading");
+        const completedTasks = recent.filter(t => t.status === "completed");
+        const failedTasks = recent.filter(t => t.status === "failed");
+
+        document.getElementById("queueCountBadge").textContent = activeTasks.length;
+        document.getElementById("qCount_all").textContent = recent.length;
+        document.getElementById("qCount_active").textContent = activeTasks.length;
+        document.getElementById("qCount_completed").textContent = completedTasks.length;
+        document.getElementById("qCount_failed").textContent = failedTasks.length;
+
+        let filtered = recent;
+        if (queueFilter === "active") filtered = activeTasks;
+        else if (queueFilter === "completed") filtered = completedTasks;
+        else if (queueFilter === "failed") filtered = failedTasks;
+
+        if (filtered.length === 0) {
+          container.innerHTML = `<p class="text-zinc-500 text-xs py-4 text-center">No downloads matching filter "${queueFilter}".</p>`;
+          return;
+        }
+
+        let html = "";
+        filtered.slice().reverse().forEach(t => {
+          let statusBadge = "";
+          if (t.status === "completed") {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Done</span>`;
+          } else if (t.status === "downloading") {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse">Downloading</span>`;
+          } else if (t.status === "failed") {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/10 text-red-400 border border-red-500/20" title="${escapeHtml(t.error || '')}">Failed</span>`;
+          } else {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-zinc-800 text-zinc-400">Queued</span>`;
+          }
+
+          html += `
+            <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950 border border-zinc-800/60 text-xs hover:border-zinc-700/60 transition">
+              <div>
+                <span class="font-bold text-zinc-200 text-sm">${escapeHtml(t.name)}</span>
+                <span class="text-zinc-400 ml-2">${escapeHtml(t.artist || "")}</span>
+                <div class="text-[11px] text-zinc-500 mt-0.5">Album: ${escapeHtml(t.album || "Unknown")}${t.error ? ` • <span class="text-red-400">${escapeHtml(t.error)}</span>` : ""}</div>
+              </div>
+              <div class="flex items-center space-x-3">
+                ${statusBadge}
+              </div>
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+      } catch (e) {}
+    }
+
+    function showToast(msg, type = "info") {
+      const toast = document.getElementById("toast");
+      const icon = document.getElementById("toastIcon");
+      const text = document.getElementById("toastMsg");
+
+      text.textContent = msg;
+      if (type === "success") {
+        toast.className = "fixed bottom-6 right-6 z-50 transform translate-y-0 opacity-100 transition duration-300 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center space-x-2 border bg-emerald-950 border-emerald-700 text-emerald-200";
+        icon.innerHTML = "✓";
+      } else if (type === "error") {
+        toast.className = "fixed bottom-6 right-6 z-50 transform translate-y-0 opacity-100 transition duration-300 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center space-x-2 border bg-red-950 border-red-700 text-red-200";
+        icon.innerHTML = "✕";
+      } else {
+        toast.className = "fixed bottom-6 right-6 z-50 transform translate-y-0 opacity-100 transition duration-300 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center space-x-2 border bg-zinc-900 border-zinc-700 text-zinc-200";
+        icon.innerHTML = "ℹ";
+      }
+
+      setTimeout(() => {
+        toast.classList.add("translate-y-20", "opacity-0");
+      }, 4000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+  </script>
+</body>
+</html>
