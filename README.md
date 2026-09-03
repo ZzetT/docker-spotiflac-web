@@ -1,6 +1,6 @@
-# SpotiFLAC-Next Headless (Web UI + Docker)
+# docker-spotiflac-web (Web UI + Docker for SpotiFLAC-Next)
 
-A lightweight headless container and modern Web UI wrapper for **SpotiFLAC-Next**. Run your supporter build of SpotiFLAC-Next on a home server or NAS without a physical display or desktop environment.
+A lightweight Docker container and modern Web UI wrapper for **SpotiFLAC-Next**. Run your supporter build of SpotiFLAC-Next headlessly on a home server or NAS without a physical display or desktop environment.
 
 > [!IMPORTANT]
 > **Pure Wrapper Notice**: This repository contains **NO** downloading, audio ripping, DRM-bypassing, or scraping code. It is exclusively an open-source headless display wrapper, internal IPC bridge, and HTML Web UI. All searches, metadata retrieval, and downloads are performed entirely by the official, user-supplied **SpotiFLAC-Next** binary.
@@ -57,7 +57,7 @@ Because this binary is distributed to supporters, it is **not** included in this
 ## Directory Overview
 
 ```
-spotiflac-headless/
+docker-spotiflac-web/
 ├── appimage/
 │   └── README.md             # Place your SpotiFLAC-Next .AppImage here
 ├── web/
@@ -79,8 +79,8 @@ spotiflac-headless/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/spotiflac-headless.git
-cd spotiflac-headless
+git clone https://github.com/your-username/docker-spotiflac-web.git
+cd docker-spotiflac-web
 ```
 
 ### 2. Place your AppImage

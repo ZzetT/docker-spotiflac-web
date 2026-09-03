@@ -1,9 +1,9 @@
 services:
-  spotiflac-headless:
+  docker-spotiflac-web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: spotiflac-headless
+    container_name: docker-spotiflac-web
     restart: unless-stopped
     ports:
       - "8080:8080"
