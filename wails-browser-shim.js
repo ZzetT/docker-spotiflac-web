@@ -8,6 +8,32 @@
   console.log("[Wails Web Shim] Initializing browser adapter for SpotiFLAC-Next...");
 
   // ============================================================================
+  // 0. Non-Secure Context Browser Polyfills (LAN HTTP access e.g. http://192.168.x.x)
+  // In modern browsers, crypto.randomUUID() is only available in Secure Contexts
+  // (HTTPS or localhost). When accessing over LAN IP via HTTP, polyfill it.
+  // ============================================================================
+  if (typeof window.crypto !== 'object') {
+    window.crypto = {};
+  }
+  if (typeof window.crypto.randomUUID !== 'function') {
+    window.crypto.randomUUID = function () {
+      if (typeof window.crypto.getRandomValues === 'function') {
+        try {
+          return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, function (c) {
+            return (c ^ (window.crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16);
+          });
+        } catch (e) {}
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = (Math.random() * 16) | 0;
+        var v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    };
+    console.log("[Wails Web Shim] Polyfilled crypto.randomUUID for non-secure HTTP context.");
+  }
+
+  // ============================================================================
   // 1. Event Subscription & Dispatch Bus (window.runtime.Events*)
   // ============================================================================
   const eventListeners = new Map(); // eventName -> Array<{ callback, max, count }>
@@ -162,6 +188,18 @@
           await navigator.clipboard.writeText(text);
           return true;
         }
+      } catch (e) {}
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return success;
       } catch (e) {}
       return false;
     },
