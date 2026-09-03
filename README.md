@@ -134,6 +134,7 @@ http://<your-home-server-ip>:8085
 Configuration can be customized directly in `docker-compose.yml` or via a `.env` file (see `.env.example`):
 
 - **Host Port**: `HOST_PORT=8085` (default: `8085`, mapped to internal container port `8080`).
+- **AppImage Directory**: `APPIMAGE_PATH=./appimage` by default. Point this to the host folder where your `SpotiFLAC-Next.AppImage` is placed.
 - **Config & Session Directory**: `CONFIG_PATH=~/.spotiflac-next` by default. For a self-contained server/NAS setup, set `CONFIG_PATH=./config`.
 - **Downloads Folder**: `DOWNLOADS_PATH=./downloads` by default (mounted to `/root/Music` in the container). On a NAS, set this to your storage pool or music share (e.g. `DOWNLOADS_PATH=/volume1/music` or `/mnt/user/music`).
 

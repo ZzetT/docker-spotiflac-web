@@ -10,7 +10,7 @@ services:
     shm_size: '1gb'
     volumes:
       # Mount supporter AppImage (place your SpotiFLAC-Next .AppImage here)
-      - ./appimage:/app/appimage:ro
+      - ${APPIMAGE_PATH:-./appimage}:/app/appimage:ro
       # Mount host configuration & active supporter session (or set CONFIG_PATH=./config in .env)
       - ${CONFIG_PATH:-${HOME}/.spotiflac-next}:/root/.spotiflac-next
       # Destination directory where downloaded FLAC albums will be stored
