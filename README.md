@@ -1,9 +1,9 @@
-# docker-spotiflac-web (Web UI + Docker for SpotiFLAC-Next)
+# docker-spotiflac-web
 
-A lightweight Docker container and modern Web UI wrapper for **SpotiFLAC-Next**. Run your supporter build of SpotiFLAC-Next headlessly on a home server or NAS without a physical display or desktop environment.
+A lightweight Docker container and browser bridge that brings **SpotiFLAC-Next's authentic desktop React Web UI** directly into any modern web browser. Run your supporter build of SpotiFLAC-Next headlessly on a home server or NAS without a physical display, desktop environment, or VNC—and access the complete, genuine SpotiFLAC-Next interface from any phone, tablet, or PC on your network.
 
 > [!IMPORTANT]
-> **Pure Wrapper Notice**: This repository contains **NO** downloading, audio ripping, DRM-bypassing, or scraping code. It is exclusively an open-source headless display wrapper, internal IPC bridge, and HTML Web UI. All searches, metadata retrieval, and downloads are performed entirely by the official, user-supplied **SpotiFLAC-Next** binary.
+> **Pure Display Bridge Notice**: This repository contains **NO** downloading, audio ripping, DRM-bypassing, or proprietary application code. It is exclusively an open-source headless display wrapper and browser adapter that extracts the official embedded React frontend from your user-supplied **SpotiFLAC-Next** AppImage and bridges its Wails runtime over HTTP RPC and Server-Sent Events. All application logic, searches, and downloads are executed entirely by the official binary.
 
 ---
 
@@ -141,11 +141,11 @@ Configuration can be customized directly in `docker-compose.yml` or via a `.env`
 
 ## Disclaimer
 
-This project is an independent headless wrapper and web interface for SpotiFLAC-Next. It is intended strictly for personal and educational purposes. Users are responsible for complying with local copyright laws and the Terms of Service of any third-party streaming platforms used.
+This project is an independent headless display bridge and browser adapter for SpotiFLAC-Next. It is intended strictly for personal and educational purposes. Users are responsible for complying with local copyright laws and the Terms of Service of any third-party streaming platforms used.
 
 ---
 
 ## License
 
-This wrapper project is licensed under the [MIT License](LICENSE).
+This bridge project is licensed under the [MIT License](LICENSE).
 SpotiFLAC-Next itself is property of its respective author(s).
