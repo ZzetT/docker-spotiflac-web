@@ -1,9 +1,13 @@
 downloads/
+config/
 *.so
 libbridge.so
 appimage/
 *.AppImage
 squashfs-root/
+web/assets/
+web/icon.svg
+web/index.html
 __pycache__/
 *.pyc
 .git

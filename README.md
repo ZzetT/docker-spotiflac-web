@@ -86,7 +86,7 @@ docker-spotiflac-web/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/docker-spotiflac-web.git
+git clone https://github.com/ZzetT/docker-spotiflac-web.git
 cd docker-spotiflac-web
 ```
 
