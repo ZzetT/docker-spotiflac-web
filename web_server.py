@@ -217,9 +217,57 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(f.read())
                 return
             else:
+                # Check whether AppImage exists on system
+                appimage_found = False
+                for d in ("/app/appimage", os.path.join(os.path.dirname(os.path.abspath(__file__)), "appimage"), "/app"):
+                    if os.path.isdir(d):
+                        for fname in os.listdir(d):
+                            if fname.endswith(".AppImage"):
+                                appimage_found = True
+                                break
+                    if appimage_found:
+                        break
+                if not appimage_found and os.path.isfile("/app/squashfs-root/AppRun"):
+                    appimage_found = True
+
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
+
+                if not appimage_found:
+                    self.wfile.write(b"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="5">
+    <title>SpotiFLAC-Next AppImage Required</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #09090b; color: #e4e4e7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; max-width: 540px; width: 100%; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .icon { width: 48px; height: 48px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 20px; }
+        h1 { font-size: 20px; font-weight: 600; margin: 0 0 12px; color: #fafafa; }
+        p { color: #a1a1aa; font-size: 14px; line-height: 1.6; margin: 0 0 16px; }
+        .code-box { background: #09090b; border: 1px solid #27272a; border-radius: 8px; padding: 12px 16px; font-family: ui-monospace, monospace; font-size: 13px; color: #10b981; word-break: break-all; margin-bottom: 20px; }
+        .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #eab308; margin-right: 8px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
+        .status { font-size: 13px; color: #eab308; display: flex; align-items: center; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">&#9888;</div>
+        <h1>SpotiFLAC-Next AppImage Required</h1>
+        <p>SpotiFLAC-Next is a supporter build available to donors supporting development. To run this container, place your Linux <code>.AppImage</code> file into the <code>appimage/</code> folder:</p>
+        <div class="code-box">./appimage/SpotiFLAC-Next.AppImage</div>
+        <p>Once placed, the container will automatically detect the file, extract the official React frontend, and load the application.</p>
+        <div class="status"><span class="pulse"></span> Monitoring for AppImage file (auto-refreshes every 5s)...</div>
+    </div>
+</body>
+</html>""")
+                    return
+
                 self.wfile.write(b"""<!DOCTYPE html>
 <html>
 <head>

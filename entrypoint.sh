@@ -38,7 +38,7 @@ if [ -z "$APPIMAGE" ] && [ -d /app ]; then
     APPIMAGE=$(find /app -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -n 1)
 fi
 
-# If neither an AppImage nor an existing extracted runtime is found, display clear error
+# If neither an AppImage nor an existing extracted runtime is found, display clear error & monitor
 if [ -z "$APPIMAGE" ] && [ ! -f /app/squashfs-root/AppRun ]; then
     echo ""
     echo "========================================================================"
@@ -50,12 +50,28 @@ if [ -z "$APPIMAGE" ] && [ ! -f /app/squashfs-root/AppRun ]; then
     echo " Please place your Linux .AppImage file into the 'appimage/' folder:"
     echo "   ./appimage/SpotiFLAC-Next.AppImage"
     echo ""
-    echo " Then start the container:"
-    echo "   docker compose up -d"
+    echo " Web UI is active at http://0.0.0.0:${PORT:-8080} and will"
+    echo " automatically initialize as soon as the AppImage is provided."
     echo "========================================================================"
     echo ""
-    sleep 5
-    exit 1
+
+    # Start web server so visiting the Web UI shows helpful setup instructions
+    python3 /app/web_server.py &
+    WAIT_WEB_PID=$!
+
+    while [ -z "$APPIMAGE" ]; do
+        sleep 3
+        if [ -d /app/appimage ]; then
+            APPIMAGE=$(find /app/appimage -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -n 1)
+        fi
+        if [ -z "$APPIMAGE" ] && [ -d /app ]; then
+            APPIMAGE=$(find /app -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -n 1)
+        fi
+    done
+
+    echo "[headless] AppImage detected: $(basename "$APPIMAGE")! Initializing..."
+    kill $WAIT_WEB_PID 2>/dev/null || true
+    wait $WAIT_WEB_PID 2>/dev/null || true
 fi
 
 # Prepare/extract AppImage if present and needed
@@ -97,6 +113,8 @@ APP_PID=$!
 cleanup() {
     echo "[headless] Shutting down services..."
     kill $APP_PID 2>/dev/null || true
+    kill $WEB_PID 2>/dev/null || true
+    kill $WAIT_WEB_PID 2>/dev/null || true
     kill $XVFB_PID 2>/dev/null || true
     exit 0
 }
