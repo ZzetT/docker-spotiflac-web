@@ -133,5 +133,71 @@ echo "[headless] Starting SpotiFLAC Web Server on http://0.0.0.0:8080..."
 python3 /app/web_server.py &
 WEB_PID=$!
 
-# Keep running
-wait $WEB_PID
+# Monitor loop: watches web server and hot-reloads on AppImage updates
+echo "[headless] SpotiFLAC-Next is active and monitoring for runtime updates."
+while true; do
+    sleep 5
+    if ! kill -0 $WEB_PID 2>/dev/null; then
+        echo "[headless] Web server stopped. Shutting down container..."
+        break
+    fi
+
+    # Check for new or updated AppImage
+    NEW_APPIMAGE=""
+    if [ -d /app/appimage ]; then
+        NEW_APPIMAGE=$(find /app/appimage -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -n 1)
+    fi
+    if [ -z "$NEW_APPIMAGE" ] && [ -d /app ]; then
+        NEW_APPIMAGE=$(find /app -maxdepth 1 -name "*.AppImage" 2>/dev/null | head -n 1)
+    fi
+
+    if [ -n "$NEW_APPIMAGE" ]; then
+        NEW_HASH=$(sha256sum "$NEW_APPIMAGE" 2>/dev/null | awk '{print $1}')
+        STORED_HASH=""
+        if [ -f /app/squashfs-root/.appimage_hash ]; then
+            STORED_HASH=$(cat /app/squashfs-root/.appimage_hash 2>/dev/null || true)
+        fi
+
+        if [ -n "$NEW_HASH" ] && [ "$NEW_HASH" != "$STORED_HASH" ]; then
+            # Verify file copy has settled (size stable for 2 seconds)
+            SZ1=$(stat -c%s "$NEW_APPIMAGE" 2>/dev/null || echo "1")
+            sleep 2
+            SZ2=$(stat -c%s "$NEW_APPIMAGE" 2>/dev/null || echo "2")
+            if [ "$SZ1" = "$SZ2" ]; then
+                echo "[headless] Updated AppImage detected ($(basename "$NEW_APPIMAGE"))! Performing hot reload..."
+
+                # Gracefully stop existing SpotiFLAC process
+                kill -TERM $APP_PID 2>/dev/null || true
+                wait $APP_PID 2>/dev/null || true
+
+                # Re-extract runtime
+                rm -rf /app/squashfs-root
+                cp "$NEW_APPIMAGE" /tmp/spoti.AppImage
+                chmod +x /tmp/spoti.AppImage
+                cd /app && /tmp/spoti.AppImage --appimage-extract >/dev/null 2>&1
+                rm -f /tmp/spoti.AppImage
+                echo "$NEW_HASH" > /app/squashfs-root/.appimage_hash
+
+                # Refresh frontend assets
+                if [ -f /app/squashfs-root/usr/bin/SpotiFLAC-Next ] && [ -f /app/extract_frontend.py ]; then
+                    echo "[headless] Updating official React frontend assets..."
+                    python3 /app/extract_frontend.py /app/squashfs-root/usr/bin/SpotiFLAC-Next /app/web /app/wails-browser-shim.js || true
+                fi
+
+                # Relaunch updated SpotiFLAC-Next
+                echo "[headless] Restarting SpotiFLAC-Next runtime..."
+                /app/squashfs-root/AppRun &
+                APP_PID=$!
+
+                # Wait for bridge to reconnect
+                for i in {1..60}; do
+                    if curl -s http://127.0.0.1:8081/health | grep -q "ok"; then
+                        echo "[headless] SpotiFLAC WebKit bridge reconnected!"
+                        break
+                    fi
+                    sleep 0.5
+                done
+            fi
+        fi
+    fi
+done
