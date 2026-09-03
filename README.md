@@ -139,6 +139,18 @@ Configuration can be customized directly in `docker-compose.yml` or via a `.env`
 
 ---
 
+## Security & Network Notice
+
+> [!WARNING]
+> **Do NOT expose this service directly to the public internet.**
+>
+> This application is designed for local use and does not implement built-in user authentication, password protection, or rate limiting. Anyone who can reach the Web UI port can execute searches, queue downloads to your storage, and alter your application settings.
+>
+> - **Local LAN or VPN Only**: Keep this service restricted to your private local network (LAN) or access it remotely through a secure VPN (such as WireGuard, Tailscale, or OpenVPN).
+> - **If using a Reverse Proxy**: If exposing this service via a reverse proxy (e.g., Nginx, Caddy, Traefik), you **MUST** protect it with an external authentication middleware (such as Authelia, Authentik, Cloudflare Access, or HTTP Basic Auth) and enforce HTTPS.
+
+---
+
 ## Disclaimer
 
 This project is an independent headless display bridge and browser adapter for SpotiFLAC-Next. It is intended strictly for personal and educational purposes. Users are responsible for complying with local copyright laws and the Terms of Service of any third-party streaming platforms used.
