@@ -11,11 +11,13 @@ A lightweight Docker container and modern Web UI wrapper for **SpotiFLAC-Next**.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Browser / Client (Web UI at http://<server-ip>:8080)        │
+│  Browser / Client (Web UI at http://<server-ip>:8085)        │
+│  ├── Official SpotiFLAC-Next React/Tailwind/Radix UI         │
+│  └── wails-browser-shim.js (Proxies window.go & SSE events)  │
 └──────────────────────────────┬───────────────────────────────┘
-                               │ HTTP / REST
+                               │ HTTP RPC (:8085) & SSE Stream
 ┌──────────────────────────────▼───────────────────────────────┐
-│  web_server.py (Lightweight Web Server & API proxy)          │
+│  web_server.py (Static asset server & RPC/SSE bridge)        │
 └──────────────────────────────┬───────────────────────────────┘
                                │ Internal Bridge (:8081)
 ┌──────────────────────────────▼───────────────────────────────┐
@@ -29,19 +31,21 @@ A lightweight Docker container and modern Web UI wrapper for **SpotiFLAC-Next**.
 ```
 
 1. **Virtual Display**: SpotiFLAC-Next is a desktop GUI application built with Wails (Go + WebKitGTK). This container runs `Xvfb` (X Virtual Framebuffer) to provide an invisible virtual display so the application runs headlessly on any Linux server.
-2. **WebKit Bridge**: A minimal C library (`bridge.c`) hooks into the GTK WebKit view, translating web API requests into internal Wails function invocations.
-3. **Responsive Web UI**: A clean, single-page web interface (`web/index.html`) served by `web_server.py` allows managing the desktop app remotely from any browser on your home network.
-4. **100% Delegated Execution**: All streaming platform communication, search queries, format conversions, and downloads are executed exclusively by the official SpotiFLAC-Next binary provided by the user.
+2. **Official React UI Extraction**: On startup, `extract_frontend.py` extracts the authentic React/Tailwind/Radix production single-page application directly from the Go binary's `embed.FS` table.
+3. **Browser Compatibility Shim (`wails-browser-shim.js`)**: A client-side adapter emulates `window.go` via a dynamic JavaScript Proxy and `window.runtime` via Server-Sent Events (SSE), enabling the official desktop frontend to run in any standard web browser.
+4. **WebKit Bridge**: A minimal C library (`bridge.c`) hooks into the GTK WebKit view, translating remote web RPC requests into internal Wails function invocations.
+5. **100% Delegated Execution**: All streaming platform communication, search queries, format conversions, and downloads are executed exclusively by the official SpotiFLAC-Next binary provided by the user.
 
 ---
 
 ## Features (via Headless Web UI)
 
-- 🌐 **Modern Remote Web Interface**: Access from any browser on your home network (phone, laptop, tablet) at `http://<server-ip>:8080`.
-- 🔗 **Direct URL Paste Support**: Paste album or track links from Amazon Music, Spotify, Tidal, Qobuz, or Deezer directly into the web UI.
-- 🔍 **Multi-Platform Search UI**: Trigger multi-service searches in SpotiFLAC-Next directly from the web interface.
-- ⬇️ **1-Click Full Album Download**: Remote inspection of tracklists with one-click full album download triggers.
-- 📋 **Live Queue & Progress**: Monitor the desktop application's download queue and task states in real time.
+- 🌐 **Authentic Official React UI**: Enjoy the complete, original SpotiFLAC-Next interface (dark/light themes, animations, queue manager, search tabs, settings, lyrics, audio tools) served directly to mobile, desktop, or tablet browsers.
+- ⚡ **Real-Time Event Streaming**: Live download progress, queue changes, and notifications streamed instantly via Server-Sent Events (SSE).
+- 🔗 **Direct URL & Album Support**: Paste links from Amazon Music, Spotify, Tidal, Qobuz, or Deezer directly into the web UI.
+- 🔍 **Multi-Platform Search**: Search across supported streaming services directly inside the web interface.
+- ⬇️ **Full Queue & Download Management**: Track downloads in real time with pause, retry, and cancellation controls.
+- 🎛️ **Full Settings Editor**: Configure download directories, naming templates, audio conversion, ReplayGain tagging, and credentials.
 - 🔒 **Supporter Session Retention**: Mounts your existing supporter tokens (`~/.spotiflac-next`) so downloads function immediately without re-authenticating.
 
 ---
@@ -61,12 +65,15 @@ docker-spotiflac-web/
 ├── appimage/
 │   └── README.md             # Place your SpotiFLAC-Next .AppImage here
 ├── web/
-│   └── index.html            # Responsive, dark-mode Web UI
-├── web_server.py             # Python HTTP server providing Web UI & REST API
+│   ├── index.html            # Official React single-page application entrypoint
+│   └── assets/               # Extracted production React bundles, styles & icons
+├── extract_frontend.py       # Extracts embedded React UI from Go binary / AppImage
+├── wails-browser-shim.js     # Wails v2 browser adapter (window.go & window.runtime proxy)
+├── web_server.py             # Python HTTP server providing Web UI, RPC bridge & SSE
 ├── bridge.c                  # Lightweight C library intercepting WebKit WebView
 ├── docker-compose.yml        # Docker Compose service definition
 ├── Dockerfile                # Headless Ubuntu container with Xvfb and WebKitGTK
-├── entrypoint.sh             # Startup & auto-extraction script
+├── entrypoint.sh             # Startup, auto-extraction & orchestration script
 ├── downloads/                # Download destination (mounted into container)
 ├── .env.example              # Sample environment configuration
 └── LICENSE                   # MIT License
@@ -102,7 +109,7 @@ mkdir -p "${HOME}/.spotiflac-next"
 
 ### 4. Start the Container
 
-Ensure any local desktop instance of SpotiFLAC is closed (to avoid SQLite database locks), then run:
+Ensure any local desktop instance of SpotiFLAC is closed (to avoid database locks), then run:
 
 ```bash
 docker compose up -d --build
@@ -112,24 +119,9 @@ docker compose up -d --build
 
 Open your web browser and navigate to:
 ```
-http://<your-home-server-ip>:8080
+http://<your-home-server-ip>:8085
 ```
-*(If running on the same machine, visit `http://localhost:8080`)*
-
----
-
-## Usage
-
-1. **Paste an Album Link**:
-   - Copy an album URL from Amazon Music (e.g., `https://music.amazon.com/albums/...`), Spotify, or Tidal.
-   - Paste it into the search bar and click **Fetch / Search**.
-   - Review the tracklist and click **⬇️ Download Entire Album (FLAC)** or download individual tracks.
-2. **Search by Keyword**:
-   - Type an artist or album name (e.g., `Daft Punk Discovery`).
-   - Select the platform and click **Search**.
-   - Inspect albums from search results and queue them for download.
-
-Downloads are saved directly to `./downloads/` on the host.
+*(If running on the same machine, visit `http://localhost:8085`)*
 
 ---
 
@@ -137,9 +129,9 @@ Downloads are saved directly to `./downloads/` on the host.
 
 Configuration can be customized directly in `docker-compose.yml` or via a `.env` file (see `.env.example`):
 
+- **Host Port**: `HOST_PORT=8085` (default: 8085).
 - **Downloads Folder**: By default, music is saved into `./downloads` (mounted to `/root/Downloads` in the container).
 - **Supporter Token**: Mounted from `${HOME}/.spotiflac-next` to `/root/.spotiflac-next`.
-- **Port**: Set `PORT=8080` to customize the external port.
 
 ---
 

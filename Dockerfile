@@ -37,8 +37,10 @@ RUN mkdir -p /app/appimage
 # Copy Web application & API server
 COPY web /app/web
 COPY web_server.py /app/web_server.py
+COPY extract_frontend.py /app/extract_frontend.py
+COPY wails-browser-shim.js /app/wails-browser-shim.js
 COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh /app/web_server.py
+RUN chmod +x /app/entrypoint.sh /app/web_server.py /app/extract_frontend.py
 
 EXPOSE 8080
 

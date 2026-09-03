@@ -71,6 +71,12 @@ if [ -n "$APPIMAGE" ]; then
     fi
 fi
 
+# Prepare official React web frontend from binary if available
+if [ -f /app/squashfs-root/usr/bin/SpotiFLAC-Next ] && [ -f /app/extract_frontend.py ]; then
+    echo "[headless] Preparing official SpotiFLAC-Next React web frontend..."
+    python3 /app/extract_frontend.py /app/squashfs-root/usr/bin/SpotiFLAC-Next /app/web /app/wails-browser-shim.js || true
+fi
+
 echo "[headless] Launching SpotiFLAC-Next runtime..."
 /app/squashfs-root/AppRun &
 APP_PID=$!

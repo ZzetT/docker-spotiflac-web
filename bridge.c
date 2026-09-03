@@ -194,19 +194,37 @@ static void *http_server_thread(void *arg) {
 
         char *body_start = header_end + 4;
         size_t body_received = total_read - (size_t)(body_start - buffer);
+        char *dyn_allocated = NULL;
 
-        // Continue reading until entire body is received
-        while (body_received < content_length && total_read < sizeof(buffer) - 1) {
-            ssize_t n = read(client_fd, buffer + total_read, sizeof(buffer) - 1 - total_read);
-            if (n <= 0) break;
-            total_read += (size_t)n;
-            buffer[total_read] = '\0';
-            body_received += (size_t)n;
+        if (content_length > 0 && (size_t)(content_length + (body_start - buffer) + 16) > sizeof(buffer)) {
+            size_t needed = content_length + (size_t)(body_start - buffer) + 16;
+            dyn_allocated = (char *)malloc(needed);
+            if (dyn_allocated) {
+                memcpy(dyn_allocated, buffer, total_read);
+                body_start = dyn_allocated + (body_start - buffer);
+
+                while (body_received < content_length) {
+                    ssize_t n = read(client_fd, body_start + body_received, content_length - body_received);
+                    if (n <= 0) break;
+                    body_received += (size_t)n;
+                }
+            }
+        } else {
+            // Continue reading until entire body is received in stack buffer
+            while (body_received < content_length && total_read < sizeof(buffer) - 1) {
+                ssize_t n = read(client_fd, buffer + total_read, sizeof(buffer) - 1 - total_read);
+                if (n <= 0) break;
+                total_read += (size_t)n;
+                buffer[total_read] = '\0';
+                body_received += (size_t)n;
+            }
         }
 
         // Ensure body is null-terminated at content_length
         if (content_length > 0 && body_received >= content_length) {
             body_start[content_length] = '\0';
+        } else {
+            body_start[body_received] = '\0';
         }
 
         EvalTask task;
@@ -238,6 +256,9 @@ static void *http_server_thread(void *arg) {
         if (task.result && content_len > 0) {
             write_all(client_fd, task.result, (size_t)content_len);
             g_free(task.result);
+        }
+        if (dyn_allocated) {
+            free(dyn_allocated);
         }
         close(client_fd);
     }

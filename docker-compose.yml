@@ -6,7 +6,7 @@ services:
     container_name: docker-spotiflac-web
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${HOST_PORT:-8085}:8080"
     shm_size: '1gb'
     volumes:
       # Mount supporter AppImage (place your SpotiFLAC-Next .AppImage here)
@@ -18,6 +18,8 @@ services:
       # Live mounts for web UI and server
       - ./web:/app/web
       - ./web_server.py:/app/web_server.py
+      - ./extract_frontend.py:/app/extract_frontend.py
+      - ./wails-browser-shim.js:/app/wails-browser-shim.js
       - ./entrypoint.sh:/app/entrypoint.sh
     environment:
       - PORT=8080

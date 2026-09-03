@@ -10,6 +10,12 @@ libbridge.so
 appimage/*.AppImage
 squashfs-root/
 
+# Extracted frontend assets from supporter build
+web/assets/
+web/icon.svg
+web/index.html
+web/wails-browser-shim.js
+
 # Python cache
 __pycache__/
 *.pyc
