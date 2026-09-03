@@ -15,9 +15,8 @@ for i in {1..30}; do
     sleep 0.1
 done
 
-# Ensure /root/Music exists and create /root/Downloads alias
+# Ensure /root/Music exists
 mkdir -p /root/Music
-ln -sf /root/Music /root/Downloads
 
 export DISPLAY=:99
 export LD_PRELOAD=/app/libbridge.so
