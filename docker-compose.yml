@@ -22,6 +22,7 @@ services:
       - ./wails-browser-shim.js:/app/wails-browser-shim.js
       - ./entrypoint.sh:/app/entrypoint.sh
     environment:
+      - HOST_PORT=${HOST_PORT:-8085}
       - PORT=8080
       - BRIDGE_PORT=8081
       - WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1

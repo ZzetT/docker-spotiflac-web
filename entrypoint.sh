@@ -50,7 +50,7 @@ if [ -z "$APPIMAGE" ] && [ ! -f /app/squashfs-root/AppRun ]; then
     echo " Please place your Linux .AppImage file into the 'appimage/' folder:"
     echo "   ./appimage/SpotiFLAC-Next.AppImage"
     echo ""
-    echo " Web UI is active at http://0.0.0.0:${PORT:-8080} and will"
+    echo " Web UI is active at http://<your-server-ip>:${HOST_PORT:-8085} and will"
     echo " automatically initialize as soon as the AppImage is provided."
     echo "========================================================================"
     echo ""
@@ -129,7 +129,7 @@ for i in {1..60}; do
     sleep 0.5
 done
 
-echo "[headless] Starting SpotiFLAC Web Server on http://0.0.0.0:8080..."
+echo "[headless] Starting SpotiFLAC Web Server on port ${HOST_PORT:-8085}..."
 python3 /app/web_server.py &
 WEB_PID=$!
 

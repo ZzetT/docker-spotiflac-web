@@ -133,7 +133,7 @@ http://<your-home-server-ip>:8085
 
 Configuration can be customized directly in `docker-compose.yml` or via a `.env` file (see `.env.example`):
 
-- **Host Port**: `HOST_PORT=8085` (default: `8085`).
+- **Host Port**: `HOST_PORT=8085` (default: `8085`, mapped to internal container port `8080`).
 - **Config & Session Directory**: `CONFIG_PATH=~/.spotiflac-next` by default. For a self-contained server/NAS setup, set `CONFIG_PATH=./config`.
 - **Downloads Folder**: By default, music is saved into `./downloads` (mounted to `/root/Downloads` in the container).
 

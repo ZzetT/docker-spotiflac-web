@@ -370,11 +370,12 @@ def run_server():
     # Start background event bridging loop
     threading.Thread(target=event_bridge_loop, daemon=True).start()
 
+    host_port = os.environ.get("HOST_PORT", str(LISTEN_PORT))
     server_address = ("0.0.0.0", LISTEN_PORT)
     httpd = ThreadingHTTPServer(server_address, SpotiFLACRequestHandler)
     print(f"\n===========================================================")
-    print(f"  SpotiFLAC Web UI running at http://0.0.0.0:{LISTEN_PORT}")
-    print(f"  Bridge URL: {BRIDGE_URL}")
+    print(f"  SpotiFLAC Web UI running on port {host_port}")
+    print(f"  Access in browser: http://<your-server-ip>:{host_port}")
     print(f"===========================================================\n")
     sys.stdout.flush()
     try:
