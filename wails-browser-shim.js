@@ -271,7 +271,7 @@
 
         // Special handling for browser-incompatible desktop dialogs:
         if (method === 'main.App.SelectFolder') {
-          const currentPath = args[0] || '/root/Downloads';
+          const currentPath = args[0] || '/root/Music';
           const entered = window.prompt("Enter music/download folder path on server:", currentPath);
           return Promise.resolve(entered || currentPath);
         }

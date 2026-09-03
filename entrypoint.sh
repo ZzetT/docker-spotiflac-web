@@ -15,11 +15,12 @@ for i in {1..30}; do
     sleep 0.1
 done
 
-# Ensure /root/Downloads exists and /mnt/music points to it if configured
-mkdir -p /root/Downloads
+# Ensure /root/Music exists and create convenience aliases for downloads
+mkdir -p /root/Music
+ln -sf /root/Music /root/Downloads
 if [ ! -d /mnt/music ]; then
     mkdir -p /mnt
-    ln -sf /root/Downloads /mnt/music
+    ln -sf /root/Music /mnt/music
 fi
 
 export DISPLAY=:99

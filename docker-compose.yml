@@ -14,7 +14,7 @@ services:
       # Mount host configuration & active supporter session (or set CONFIG_PATH=./config in .env)
       - ${CONFIG_PATH:-${HOME}/.spotiflac-next}:/root/.spotiflac-next
       # Destination directory where downloaded FLAC albums will be stored
-      - ${DOWNLOADS_PATH:-./downloads}:/root/Downloads
+      - ${DOWNLOADS_PATH:-./downloads}:/root/Music
       # Live mounts for web UI and server
       - ./web:/app/web
       - ./web_server.py:/app/web_server.py
