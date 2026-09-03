@@ -1,5 +1,6 @@
-# Download destination
+# Download destination and configuration
 downloads/
+config/
 
 # Shared libraries and build artifacts
 *.so

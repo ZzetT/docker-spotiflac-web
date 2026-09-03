@@ -11,8 +11,8 @@ services:
     volumes:
       # Mount supporter AppImage (place your SpotiFLAC-Next .AppImage here)
       - ./appimage:/app/appimage:ro
-      # Mount host configuration & active supporter session
-      - ${HOME}/.spotiflac-next:/root/.spotiflac-next
+      # Mount host configuration & active supporter session (or set CONFIG_PATH=./config in .env)
+      - ${CONFIG_PATH:-${HOME}/.spotiflac-next}:/root/.spotiflac-next
       # Destination directory where downloaded FLAC albums will be stored
       - ./downloads:/root/Downloads
       # Live mounts for web UI and server

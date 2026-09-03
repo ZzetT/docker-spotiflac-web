@@ -99,17 +99,21 @@ cp /path/to/SpotiFLAC-Next.AppImage ./appimage/
 ```
 *(Any filename ending in `.AppImage` in the `appimage/` folder will be detected automatically).*
 
-### 3. Ensure Config Directory Exists
+### 3. (Optional) Configuration & Supporter Session
 
-If you haven't run SpotiFLAC desktop on your host before, create the config directory so Docker doesn't initialize it with root-only ownership:
+The container stores settings, download history databases, and your active supporter session in `~/.spotiflac-next` (or in a local `./config` folder if you set `CONFIG_PATH=./config` in `.env`).
+
+Create the directory before starting so your host user retains ownership:
 
 ```bash
 mkdir -p "${HOME}/.spotiflac-next"
 ```
 
+> **Supporter Session Tip**: If you already have an active supporter session on your personal PC, you can copy `~/.spotiflac-next` to your server to stay authenticated. Otherwise, you can simply log in directly through the Web UI once started.
+
 ### 4. Start the Container
 
-Ensure any local desktop instance of SpotiFLAC is closed (to avoid database locks), then run:
+Run:
 
 ```bash
 docker compose up -d --build
@@ -129,9 +133,9 @@ http://<your-home-server-ip>:8085
 
 Configuration can be customized directly in `docker-compose.yml` or via a `.env` file (see `.env.example`):
 
-- **Host Port**: `HOST_PORT=8085` (default: 8085).
+- **Host Port**: `HOST_PORT=8085` (default: `8085`).
+- **Config & Session Directory**: `CONFIG_PATH=~/.spotiflac-next` by default. For a self-contained server/NAS setup, set `CONFIG_PATH=./config`.
 - **Downloads Folder**: By default, music is saved into `./downloads` (mounted to `/root/Downloads` in the container).
-- **Supporter Token**: Mounted from `${HOME}/.spotiflac-next` to `/root/.spotiflac-next`.
 
 ---
 
