@@ -77,6 +77,13 @@ def extract_from_binary(binary_path, target_dir, shim_source=None):
     print(f"[Extractor] Found {len(files)} embedded files for frontend/dist.")
 
     os.makedirs(target_dir, exist_ok=True)
+
+    # Remove previous assets directory to prevent mixing old and new hashed bundles
+    assets_dir = os.path.join(target_dir, "assets")
+    if os.path.exists(assets_dir):
+        print(f"[Extractor] Cleaning previous asset chunks in {assets_dir}...")
+        shutil.rmtree(assets_dir, ignore_errors=True)
+
     count = 0
 
     for rel_path, file_bytes in files:

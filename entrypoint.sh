@@ -59,22 +59,34 @@ if [ -z "$APPIMAGE" ] && [ ! -f /app/squashfs-root/AppRun ]; then
 fi
 
 # Prepare/extract AppImage if present and needed
+EXTRACT_FRONTEND=0
 if [ -n "$APPIMAGE" ]; then
-    if [ ! -f /app/squashfs-root/AppRun ] || [ "$APPIMAGE" -nt /app/squashfs-root/AppRun ]; then
-        echo "[headless] Extracting SpotiFLAC-Next runtime from $(basename "$APPIMAGE")..."
+    APPIMAGE_HASH=$(sha256sum "$APPIMAGE" 2>/dev/null | awk '{print $1}')
+    STORED_HASH=""
+    if [ -f /app/squashfs-root/.appimage_hash ]; then
+        STORED_HASH=$(cat /app/squashfs-root/.appimage_hash 2>/dev/null || true)
+    fi
+
+    if [ ! -f /app/squashfs-root/AppRun ] || [ "$APPIMAGE" -nt /app/squashfs-root/AppRun ] || [ "$APPIMAGE_HASH" != "$STORED_HASH" ]; then
+        echo "[headless] Detected new or updated AppImage: $(basename "$APPIMAGE")..."
+        echo "[headless] Extracting SpotiFLAC-Next runtime..."
         rm -rf /app/squashfs-root
         cp "$APPIMAGE" /tmp/spoti.AppImage
         chmod +x /tmp/spoti.AppImage
         cd /app && /tmp/spoti.AppImage --appimage-extract >/dev/null 2>&1
         rm -f /tmp/spoti.AppImage
+        echo "$APPIMAGE_HASH" > /app/squashfs-root/.appimage_hash
         echo "[headless] SpotiFLAC-Next runtime ready."
+        EXTRACT_FRONTEND=1
     fi
 fi
 
-# Prepare official React web frontend from binary if available
+# Prepare official React web frontend from binary if updated or missing
 if [ -f /app/squashfs-root/usr/bin/SpotiFLAC-Next ] && [ -f /app/extract_frontend.py ]; then
-    echo "[headless] Preparing official SpotiFLAC-Next React web frontend..."
-    python3 /app/extract_frontend.py /app/squashfs-root/usr/bin/SpotiFLAC-Next /app/web /app/wails-browser-shim.js || true
+    if [ "$EXTRACT_FRONTEND" = "1" ] || [ ! -d /app/web/assets ] || [ ! -f /app/web/index.html ]; then
+        echo "[headless] Updating official React web frontend assets..."
+        python3 /app/extract_frontend.py /app/squashfs-root/usr/bin/SpotiFLAC-Next /app/web /app/wails-browser-shim.js || true
+    fi
 fi
 
 echo "[headless] Launching SpotiFLAC-Next runtime..."
