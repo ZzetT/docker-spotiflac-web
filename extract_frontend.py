@@ -122,66 +122,8 @@ def extract_from_binary(binary_path, target_dir, shim_source=None):
         shutil.copy2(shim_source, os.path.join(target_dir, "wails-browser-shim.js"))
         print(f"[Extractor] Copied {shim_source} -> {target_dir}/wails-browser-shim.js")
 
-    patch_extracted_frontend(target_dir)
-
     print(f"[Extractor] Successfully extracted {count} files to {target_dir}")
     return count
-
-def patch_extracted_frontend(target_dir):
-    """
-    Patches extracted frontend assets for mobile & browser compatibility.
-    Specifically:
-    1. Neutralizes Radix ContextMenu interception on touch devices in InputWithContext
-       so mobile users can paste natively into the search bar and inputs.
-    2. Enables the paste action without requiring artificial clipboard-content pre-check.
-    """
-    assets_dir = os.path.join(target_dir, "assets")
-    if not os.path.isdir(assets_dir):
-        return
-
-    for fname in os.listdir(assets_dir):
-        if fname.startswith("input-with-context-") and fname.endswith(".js"):
-            fpath = os.path.join(assets_dir, fname)
-            try:
-                with open(fpath, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                if "_isTouch" in content:
-                    continue
-
-                modified = False
-
-                touch_def = 'var _isTouch=typeof window!==`undefined`&&(`ontouchstart`in window||(navigator.maxTouchPoints&&navigator.maxTouchPoints>0)||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));'
-                old_x = 'function x({...e}){return(0,y.jsx)(u,{"data-slot":`context-menu-trigger`,...e})}'
-                new_x = touch_def + 'function x({...e}){return(0,y.jsx)(u,{"data-slot":`context-menu-trigger`,disabled:_isTouch,...e})}'
-                if old_x in content:
-                    content = content.replace(old_x, new_x)
-                    modified = True
-
-                old_t = 'var T=v.forwardRef(({className:e,type:i,onValueChange:o,onChange:s,...c},l)=>{'
-                new_t = old_t + 'if(_isTouch)return(0,y.jsx)(_,{ref:l,type:i,className:e,onChange:e=>{s&&s(e),o&&o(e.target.value)},...c});'
-                if old_t in content:
-                    content = content.replace(old_t, new_t)
-                    modified = True
-
-                old_paste_disabled = 'disabled:!m||c.disabled||c.readOnly'
-                new_paste_disabled = 'disabled:c.disabled||c.readOnly'
-                if old_paste_disabled in content:
-                    content = content.replace(old_paste_disabled, new_paste_disabled)
-                    modified = True
-
-                old_m = 'let t=await g(),n=e.selectionStart??0'
-                new_m = 'let t=await(navigator.clipboard&&navigator.clipboard.readText?navigator.clipboard.readText():g());if(!t)return;let n=e.selectionStart??0'
-                if old_m in content:
-                    content = content.replace(old_m, new_m)
-                    modified = True
-
-                if modified:
-                    with open(fpath, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    print(f"[Extractor] Patched mobile input compatibility in {fname}")
-            except Exception as ex:
-                print(f"[Extractor] Warning: failed to patch {fname}: {ex}")
 
 def extract_from_appimage(appimage_path, target_dir, shim_source=None):
     """
