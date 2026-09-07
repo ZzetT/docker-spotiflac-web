@@ -3,11 +3,17 @@
 > [!NOTE]
 > Tested and verified with **SpotiFLAC-Next v1.5.3**.
 
+> [!IMPORTANT]
+> **AppImage & Code NOT Included — Must Be Downloaded Separately**:  
+> This repository is exclusively an open-source Docker wrapper and browser bridge. It does **NOT** contain the SpotiFLAC-Next AppImage, any SpotiFLAC-Next source code, or downloading/ripping binaries.  
+> 
+> You **must download the official SpotiFLAC-Next Linux AppImage separately** from the upstream project / supporter channels and place it into the `appimage/` directory before running the container.
+
 ![SpotiFLAC-Next Web UI](Screenshot.png)
 
 A lightweight Docker container and browser bridge that brings **SpotiFLAC-Next's authentic desktop React Web UI** directly into any modern web browser. Run your supporter build of SpotiFLAC-Next headlessly on a home server or NAS without a physical display, desktop environment, or VNC—and access the complete, genuine SpotiFLAC-Next interface from any phone, tablet, or PC on your network.
 
-> [!IMPORTANT]
+> [!NOTE]
 > **Pure Display Bridge Notice**: This repository contains **NO** downloading, audio ripping, DRM-bypassing, or proprietary application code. It is exclusively an open-source headless display wrapper and browser adapter that extracts the official embedded React frontend from your user-supplied **SpotiFLAC-Next** AppImage and bridges its Wails runtime over HTTP RPC and Server-Sent Events. All application logic, searches, and downloads are executed entirely by the official binary.
 
 ---
@@ -55,11 +61,14 @@ A lightweight Docker container and browser bridge that brings **SpotiFLAC-Next's
 
 ---
 
-## Prerequisites
+## Prerequisites: Download SpotiFLAC-Next Separately
 
-**SpotiFLAC-Next** is developed and maintained by [spotbye](https://github.com/spotbye/SpotiFLAC-Next) as a supporter build for project donors (via [coffee.spotbye.qzz.io](https://coffee.spotbye.qzz.io), Patreon, or other supported donation methods).
-
-Because this binary is distributed to supporters, it is **not** included in this repository. You must supply your own Linux AppImage file to run the container.
+> [!WARNING]
+> **No AppImage or SpotiFLAC-Next Code is Bundled in this Repository.**
+>
+> **SpotiFLAC-Next** is developed and maintained independently by [spotbye](https://github.com/spotbye/SpotiFLAC-Next). Supporter builds are provided to project donors (via [coffee.spotbye.qzz.io](https://coffee.spotbye.qzz.io), Patreon, or other supported donation methods).
+>
+> You **must obtain and download the official Linux `.AppImage` yourself** from the upstream developer before using this container. The container cannot start without your supplied AppImage file.
 
 ---
 
@@ -95,12 +104,12 @@ git clone https://github.com/ZzetT/docker-spotiflac-web.git
 cd docker-spotiflac-web
 ```
 
-### 2. Place your AppImage
+### 2. Download and Place your AppImage
 
-Copy your downloaded Linux AppImage into the `appimage/` directory:
+Obtain the Linux `.AppImage` from the official SpotiFLAC-Next project/supporter download source, then copy it into the `appimage/` directory:
 
 ```bash
-cp /path/to/SpotiFLAC-Next.AppImage ./appimage/
+cp /path/to/downloaded/SpotiFLAC-Next.AppImage ./appimage/
 ```
 *(Any filename ending in `.AppImage` in the `appimage/` folder will be detected automatically).*
 
