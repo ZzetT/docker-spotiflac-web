@@ -8,9 +8,12 @@
   console.log("[Wails Web Shim] Initializing browser adapter for SpotiFLAC-Next...");
 
   // ============================================================================
-  // 0. Non-Secure Context Browser Polyfills (LAN HTTP access e.g. http://192.168.x.x)
-  // In modern browsers, crypto.randomUUID() is only available in Secure Contexts
-  // (HTTPS or localhost). When accessing over LAN IP via HTTP, polyfill it.
+  // 0. Non-Secure Context & Mobile Browser Polyfills (LAN HTTP access e.g. http://192.168.x.x)
+  // In modern browsers, crypto.randomUUID() and navigator.clipboard are only available
+  // in Secure Contexts (HTTPS or localhost). When accessing over LAN IP via HTTP from a phone,
+  // clipboard reading/writing throws or is undefined, and Radix UI ContextMenu suppresses
+  // mobile touch callouts / context menus with -webkit-touch-callout: none and preventDefault().
+  // We polyfill clipboard and restore native touch paste behavior.
   // ============================================================================
   if (typeof window.crypto !== 'object') {
     window.crypto = {};
@@ -31,6 +34,137 @@
       });
     };
     console.log("[Wails Web Shim] Polyfilled crypto.randomUUID for non-secure HTTP context.");
+  }
+
+  const isTouchDevice = typeof window !== 'undefined' && (
+    'ontouchstart' in window ||
+    (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+  );
+
+  let nativeClipboard = typeof navigator !== 'undefined' ? navigator.clipboard : null;
+
+  async function safeReadClipboardText(promptFallback = true) {
+    if (nativeClipboard && typeof nativeClipboard.readText === 'function') {
+      try {
+        const text = await nativeClipboard.readText();
+        if (typeof text === 'string' && text.length > 0) {
+          return text;
+        }
+      } catch (err) {
+        // Insecure HTTP context or permission denied
+      }
+    }
+
+    if (promptFallback) {
+      try {
+        const entered = window.prompt("Paste song link or search query:");
+        if (entered) {
+          return entered.trim();
+        }
+      } catch (e) {}
+    }
+    return "";
+  }
+
+  async function safeWriteClipboardText(text) {
+    if (nativeClipboard && typeof nativeClipboard.writeText === 'function') {
+      try {
+        await nativeClipboard.writeText(text);
+        return true;
+      } catch (err) {}
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      ta.style.pointerEvents = "none";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return success;
+    } catch (e) {}
+    return false;
+  }
+
+  // Polyfill / wrap navigator.clipboard for mobile & insecure HTTP contexts
+  const clipboardPolyfill = {
+    readText: () => safeReadClipboardText(true),
+    writeText: (t) => safeWriteClipboardText(t)
+  };
+
+  try {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: clipboardPolyfill,
+      configurable: true,
+      enumerable: true,
+      writable: true
+    });
+    console.log("[Wails Web Shim] Polyfilled/adapted navigator.clipboard for mobile & HTTP contexts.");
+  } catch (e) {
+    try {
+      if (typeof Navigator !== 'undefined' && Navigator.prototype) {
+        Object.defineProperty(Navigator.prototype, 'clipboard', {
+          get: () => clipboardPolyfill,
+          configurable: true,
+          enumerable: true
+        });
+        console.log("[Wails Web Shim] Polyfilled Navigator.prototype.clipboard.");
+      } else {
+        navigator.clipboard = clipboardPolyfill;
+      }
+    } catch (e2) {
+      try { navigator.clipboard = clipboardPolyfill; } catch (e3) {}
+    }
+  }
+
+  // Restore native mobile touch callout & context menu for text inputs
+  try {
+    const style = document.createElement('style');
+    style.setAttribute('data-spotiflac-mobile-fix', 'true');
+    style.textContent = `
+      input, textarea, [data-slot="input"], [data-slot="context-menu-trigger"] {
+        -webkit-touch-callout: default !important;
+        -webkit-user-select: text !important;
+        user-select: text !important;
+      }
+    `;
+    if (document.head) {
+      document.head.appendChild(style);
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (document.head && !document.querySelector('[data-spotiflac-mobile-fix]')) {
+          document.head.appendChild(style);
+        }
+      });
+    }
+  } catch (e) {}
+
+  // On touch devices, prevent desktop context menu triggers from hijacking inputs
+  if (isTouchDevice) {
+    window.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'touch' && e.target && (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.isContentEditable
+      )) {
+        e.stopPropagation();
+      }
+    }, true);
+
+    window.addEventListener('contextmenu', function (e) {
+      if (e.target && (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.isContentEditable
+      )) {
+        // Prevent Radix ContextMenu from calling preventDefault() on native mobile menu
+        e.stopPropagation();
+      }
+    }, true);
   }
 
   // ============================================================================
@@ -174,34 +308,11 @@
         window.open(url, '_blank', 'noopener,noreferrer');
       }
     },
-    ClipboardGetText: async () => {
-      try {
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          return await navigator.clipboard.readText();
-        }
-      } catch (e) {}
-      return "";
+    ClipboardGetText: async (promptFallback = false) => {
+      return await safeReadClipboardText(promptFallback);
     },
     ClipboardSetText: async (text) => {
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(text);
-          return true;
-        }
-      } catch (e) {}
-      try {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        const success = document.execCommand('copy');
-        document.body.removeChild(ta);
-        return success;
-      } catch (e) {}
-      return false;
+      return await safeWriteClipboardText(text);
     },
     OnFileDrop: () => () => {},
     OnFileDropOff: () => {},
