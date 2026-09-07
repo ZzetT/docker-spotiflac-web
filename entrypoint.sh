@@ -19,11 +19,19 @@ done
 mkdir -p /root/Music
 
 export DISPLAY=:99
+export GDK_BACKEND=x11
 export LD_PRELOAD=/app/libbridge.so
 export BRIDGE_PORT=8081
 export BRIDGE_URL=http://127.0.0.1:8081
 export PORT=8080
 export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+
+# Start D-Bus session if not already running
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    echo "[headless] Starting D-Bus session bus..."
+    eval $(dbus-launch --sh-syntax)
+    export DBUS_SESSION_BUS_ADDRESS
+fi
 
 # Locate AppImage from mounted volume or local fallback
 APPIMAGE=""
@@ -112,6 +120,9 @@ cleanup() {
     kill $WEB_PID 2>/dev/null || true
     kill $WAIT_WEB_PID 2>/dev/null || true
     kill $XVFB_PID 2>/dev/null || true
+    if [ -n "$DBUS_SESSION_BUS_PID" ]; then
+        kill $DBUS_SESSION_BUS_PID 2>/dev/null || true
+    fi
     exit 0
 }
 trap cleanup SIGINT SIGTERM

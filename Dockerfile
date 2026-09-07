@@ -1,21 +1,25 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DISPLAY=:99
+ENV GDK_BACKEND=x11
 ENV WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11-utils \
-    libwebkit2gtk-4.1-0 \
-    libgtk-3-0 \
-    libgdk-pixbuf2.0-0 \
+    dbus \
+    dbus-x11 \
+    libwebkitgtk-6.0-4 \
+    libgtk-4-1 \
+    libgdk-pixbuf-2.0-0 \
     libglib2.0-0 \
-    libjavascriptcoregtk-4.1-0 \
+    libjavascriptcoregtk-6.0-1 \
+    libsoup-3.0-0 \
     build-essential \
     pkg-config \
-    libwebkit2gtk-4.1-dev \
-    libgtk-3-dev \
+    libwebkitgtk-6.0-dev \
+    libgtk-4-dev \
     fonts-freefont-ttf \
     ca-certificates \
     curl \
@@ -28,7 +32,7 @@ WORKDIR /app
 
 # Compile bridge
 COPY bridge.c /app/bridge.c
-RUN gcc -O2 -shared -fPIC -o /app/libbridge.so /app/bridge.c $(pkg-config --cflags --libs webkit2gtk-4.1 gtk+-3.0) && \
+RUN gcc -O2 -shared -fPIC -o /app/libbridge.so /app/bridge.c $(pkg-config --cflags --libs webkitgtk-6.0 gtk4) && \
     rm -rf /app/bridge.c
 
 # Directory for mounting supporter AppImage at runtime

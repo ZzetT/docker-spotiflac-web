@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <dlfcn.h>
 #include <pthread.h>
@@ -8,7 +9,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <gtk/gtk.h>
-#include <webkit2/webkit2.h>
+#include <webkit/webkit.h>
 #include <jsc/jsc.h>
 
 static WebKitWebView *global_webview = NULL;
@@ -265,19 +266,70 @@ static void *http_server_thread(void *arg) {
     return NULL;
 }
 
-// Intercept webkit_web_view_new_with_user_content_manager
-GtkWidget *webkit_web_view_new_with_user_content_manager(WebKitUserContentManager *user_content_manager) {
-    static GtkWidget *(*real_func)(WebKitUserContentManager *) = NULL;
-    if (!real_func) {
-        real_func = dlsym(RTLD_NEXT, "webkit_web_view_new_with_user_content_manager");
+static void init_bridge_for_webview(WebKitWebView *view) {
+    if (!view) return;
+    pthread_mutex_lock(&lock);
+    if (global_webview != NULL) {
+        pthread_mutex_unlock(&lock);
+        return;
     }
+    global_webview = view;
+    pthread_mutex_unlock(&lock);
 
-    GtkWidget *view = real_func(user_content_manager);
-    global_webview = WEBKIT_WEB_VIEW(view);
     fprintf(stderr, "\n[SpotiFLAC Bridge] WebKitWebView hooked at %p\n", (void*)global_webview);
     fflush(stderr);
 
     pthread_t tid;
     pthread_create(&tid, NULL, http_server_thread, NULL);
-    return view;
+}
+
+// Hook g_object_new to capture WebKitWebView instance on GTK 4 / WebKitGTK 6.0
+gpointer g_object_new(GType object_type, const gchar *first_property_name, ...) {
+    static gpointer (*real_valist)(GType, const gchar *, va_list) = NULL;
+    if (!real_valist) {
+        real_valist = dlsym(RTLD_NEXT, "g_object_new_valist");
+    }
+    va_list args;
+    va_start(args, first_property_name);
+    gpointer obj = real_valist(object_type, first_property_name, args);
+    va_end(args);
+
+    if (obj) {
+        const char *type_name = g_type_name(object_type);
+        if (type_name && strcmp(type_name, "WebKitWebView") == 0) {
+            init_bridge_for_webview(WEBKIT_WEB_VIEW(obj));
+        } else if (webkit_web_view_get_type && g_type_is_a(object_type, webkit_web_view_get_type())) {
+            init_bridge_for_webview(WEBKIT_WEB_VIEW(obj));
+        }
+    }
+    return obj;
+}
+
+// Secondary hooks for WebKitWebView calls
+void webkit_web_view_load_uri(WebKitWebView *web_view, const gchar *uri) {
+    static void (*real_func)(WebKitWebView *, const gchar *) = NULL;
+    if (!real_func) real_func = dlsym(RTLD_NEXT, "webkit_web_view_load_uri");
+    init_bridge_for_webview(web_view);
+    if (real_func) real_func(web_view, uri);
+}
+
+void webkit_web_view_load_alternate_html(WebKitWebView *web_view, const gchar *content, const gchar *content_uri, const gchar *base_uri) {
+    static void (*real_func)(WebKitWebView *, const gchar *, const gchar *, const gchar *) = NULL;
+    if (!real_func) real_func = dlsym(RTLD_NEXT, "webkit_web_view_load_alternate_html");
+    init_bridge_for_webview(web_view);
+    if (real_func) real_func(web_view, content, content_uri, base_uri);
+}
+
+void webkit_web_view_set_settings(WebKitWebView *web_view, WebKitSettings *settings) {
+    static void (*real_func)(WebKitWebView *, WebKitSettings *) = NULL;
+    if (!real_func) real_func = dlsym(RTLD_NEXT, "webkit_web_view_set_settings");
+    init_bridge_for_webview(web_view);
+    if (real_func) real_func(web_view, settings);
+}
+
+void webkit_web_view_set_background_color(WebKitWebView *web_view, const GdkRGBA *rgba) {
+    static void (*real_func)(WebKitWebView *, const GdkRGBA *) = NULL;
+    if (!real_func) real_func = dlsym(RTLD_NEXT, "webkit_web_view_set_background_color");
+    init_bridge_for_webview(web_view);
+    if (real_func) real_func(web_view, rgba);
 }

@@ -44,21 +44,19 @@ EVENT_HOOK_JS = """
     if (!window.__wails_event_hooked) {
         window.__wails_event_hooked = true;
         window.__wails_event_buf = [];
-        if (window.wails && window.wails.EventsNotify) {
-            var _origNotify = window.wails.EventsNotify;
-            window.wails.EventsNotify = function(raw) {
-                try {
-                    var p = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                    if (p && p.name) {
-                        window.__wails_event_buf.push({ name: p.name, data: p.data });
-                        if (window.__wails_event_buf.length > 500) {
-                            window.__wails_event_buf.shift();
-                        }
+        window._wails = window._wails || {};
+        var _origDispatch = window._wails.dispatchWailsEvent;
+        window._wails.dispatchWailsEvent = function(ev) {
+            try {
+                if (ev && ev.name) {
+                    window.__wails_event_buf.push({ name: ev.name, data: ev.data });
+                    if (window.__wails_event_buf.length > 500) {
+                        window.__wails_event_buf.shift();
                     }
-                } catch(e) {}
-                return _origNotify.apply(this, arguments);
-            };
-        }
+                }
+            } catch(e) {}
+            if (_origDispatch) return _origDispatch.apply(this, arguments);
+        };
     }
     var evs = window.__wails_event_buf || [];
     window.__wails_event_buf = [];
@@ -200,13 +198,84 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
             self.send_json({"success": True, "events": new_events})
             return
 
+        # Target Container Directory Browser API (for headless web UI folder picker)
+        if clean_path == "/api/target/folders":
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            target = query.get("path", ["/root/Music"])[0].strip() or "/root/Music"
+            if not os.path.isabs(target):
+                target = "/root/Music"
+            if not os.path.isdir(target):
+                if os.path.isdir("/root/Music"):
+                    target = "/root/Music"
+                else:
+                    target = "/"
+            try:
+                folders = []
+                parent = os.path.dirname(os.path.normpath(target))
+                with os.scandir(target) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_dir(follow_symlinks=True):
+                                folders.append({"name": entry.name, "path": entry.path})
+                        except Exception:
+                            pass
+                folders.sort(key=lambda x: x["name"].lower())
+                self.send_json({
+                    "current": os.path.normpath(target),
+                    "parent": parent if parent != os.path.normpath(target) else None,
+                    "folders": folders
+                })
+            except Exception as e:
+                self.send_json({
+                    "current": target,
+                    "parent": None,
+                    "folders": [],
+                    "error": str(e)
+                }, status=500)
+            return
+
         # Check if actual static file exists in WEB_DIR
         local_file_path = os.path.normpath(os.path.join(WEB_DIR, clean_path.lstrip("/")))
         if os.path.isfile(local_file_path):
             return super().do_GET()
 
+        # Wails v3 GET endpoints: /wails/*
+        if clean_path.startswith("/wails/"):
+            js = f"""
+            return (async () => {{
+                try {{
+                    const res = await fetch('{clean_path}', {{ method: 'GET' }});
+                    const txt = await res.text();
+                    const hdrs = {{}};
+                    for (const [k, v] of res.headers.entries()) {{
+                        hdrs[k] = v;
+                    }}
+                    return {{ ok: res.ok, status: res.status, headers: hdrs, body: txt }};
+                }} catch (e) {{
+                    return {{ ok: false, status: 500, headers: {{}}, body: e.message || String(e) }};
+                }}
+            }})();
+            """
+            res = bridge_eval(js)
+            if res.get("success") and isinstance(res.get("result"), dict):
+                r_dict = res["result"]
+                status_code = r_dict.get("status", 200)
+                body_str = r_dict.get("body", "")
+                self.send_response(status_code)
+                resp_headers = r_dict.get("headers", {})
+                ct = resp_headers.get("content-type", "application/javascript; charset=utf-8" if clean_path.endswith(".js") else "text/plain; charset=utf-8")
+                self.send_header("Content-Type", ct)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(body_str.encode("utf-8"))))
+                self.end_headers()
+                self.wfile.write(body_str.encode("utf-8"))
+            else:
+                self.send_json({"success": False, "error": res.get("error", "Not found")}, status=404)
+            return
+
         # SPA Routing: Any non-API route serves index.html so client-side routing works
-        if not clean_path.startswith("/api/") and clean_path not in ("/eval",):
+        if not clean_path.startswith("/api/") and clean_path not in ("/eval",) and not clean_path.startswith("/wails/"):
             index_path = os.path.join(WEB_DIR, "index.html")
             assets_path = os.path.join(WEB_DIR, "assets")
             if os.path.exists(index_path) and os.path.isdir(assets_path):
@@ -307,6 +376,87 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
                 self.send_json({"success": False, "error": "Endpoint disabled for security. Set DEBUG_EVAL=1 to enable."}, status=403)
             return
 
+        # Target Container Directory Creation API
+        if self.path == "/api/target/folders/create":
+            try:
+                data = json.loads(post_body) if post_body else {}
+                folder_to_create = data.get("path", "").strip()
+                if folder_to_create:
+                    os.makedirs(folder_to_create, exist_ok=True)
+                    self.send_json({"success": True, "path": folder_to_create})
+                else:
+                    self.send_json({"success": False, "error": "Empty folder path"}, status=400)
+            except Exception as e:
+                self.send_json({"success": False, "error": str(e)}, status=500)
+            return
+
+        # Wails v3 Runtime & Stream Proxy: /wails/*
+        if self.path.startswith("/wails/"):
+            try:
+                p_check = json.loads(post_body) if post_body else {}
+                # Prevent Application.Quit from shutting down headless server
+                if p_check.get("object") == 2 and p_check.get("method") == 2:
+                    self.send_json({"ok": True})
+                    return
+                # Prevent desktop modal dialogs from blocking headless GTK loop
+                mid = p_check.get("args", {}).get("methodID")
+                if mid == 237181597:  # main.App.SelectFolder
+                    current = p_check.get("args", {}).get("args", [""])[0] if p_check.get("args", {}).get("args") else ""
+                    self.send_json(current or "/root/Music")
+                    return
+                if mid in (2427571203, 3818965540, 3561358672):  # main.App.SelectFile / AudioFiles / LyricsFiles
+                    self.send_json([])
+                    return
+                if mid in (3894305329, 431469111):  # main.App.OpenFolder / OpenConfigFolder
+                    self.send_json(None)
+                    return
+            except Exception:
+                pass
+
+            forward_headers = {}
+            for h in ("x-wails-client-id", "x-wails-window-name", "x-wails-chunk-id", "x-wails-chunk-index", "x-wails-chunk-total", "content-type"):
+                val = self.headers.get(h)
+                if val:
+                    forward_headers[h] = val
+            headers_js = json.dumps(forward_headers)
+            body_js = json.dumps(post_body)
+            js = f"""
+            return (async () => {{
+                try {{
+                    const res = await fetch('{self.path}', {{
+                        method: 'POST',
+                        headers: {headers_js},
+                        body: {body_js}
+                    }});
+                    const txt = await res.text();
+                    const hdrs = {{}};
+                    for (const [k, v] of res.headers.entries()) {{
+                        hdrs[k] = v;
+                    }}
+                    return {{ ok: res.ok, status: res.status, headers: hdrs, body: txt }};
+                }} catch (e) {{
+                    return {{ ok: false, status: 500, headers: {{}}, body: e.message || String(e) }};
+                }}
+            }})();
+            """
+            res = bridge_eval(js)
+            if res.get("success") and isinstance(res.get("result"), dict):
+                r_dict = res["result"]
+                status_code = r_dict.get("status", 200)
+                body_str = r_dict.get("body", "")
+                self.send_response(status_code)
+                resp_headers = r_dict.get("headers", {})
+                ct = resp_headers.get("content-type", "application/json; charset=utf-8")
+                self.send_header("Content-Type", ct)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(body_str.encode("utf-8"))))
+                self.end_headers()
+                self.wfile.write(body_str.encode("utf-8"))
+            else:
+                err_msg = res.get("error", "Failed to forward Wails v3 request")
+                self.send_json({"success": False, "error": err_msg}, status=502)
+            return
+
         try:
             payload = json.loads(post_body) if post_body else {}
         except Exception:
@@ -354,7 +504,7 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, x-wails-client-id, x-wails-window-name, x-wails-chunk-id, x-wails-chunk-index, x-wails-chunk-total")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -363,7 +513,7 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, x-wails-client-id, x-wails-window-name, x-wails-chunk-id, x-wails-chunk-index, x-wails-chunk-total")
         self.end_headers()
 
 def run_server():

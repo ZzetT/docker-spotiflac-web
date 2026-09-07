@@ -1,5 +1,10 @@
 # docker-spotiflac-web
 
+> [!NOTE]
+> Tested and verified with **SpotiFLAC-Next v1.5.3**.
+
+![SpotiFLAC-Next Web UI](Screenshot.png)
+
 A lightweight Docker container and browser bridge that brings **SpotiFLAC-Next's authentic desktop React Web UI** directly into any modern web browser. Run your supporter build of SpotiFLAC-Next headlessly on a home server or NAS without a physical display, desktop environment, or VNC—and access the complete, genuine SpotiFLAC-Next interface from any phone, tablet, or PC on your network.
 
 > [!IMPORTANT]
