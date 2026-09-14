@@ -632,6 +632,139 @@
     });
   }
 
+  // ============================================================================
+  // 8. Browser Navigation History Synchronization (Browser Back/Forward Buttons)
+  // Integrates browser history with SpotiFLAC-Next's in-app navigation so clicking
+  // the browser Back/Forward buttons (and Alt+Left/Right or mobile back gestures)
+  // behaves identically to clicking the in-app back/forward buttons inside the website.
+  // ============================================================================
+  const historyMgr = {
+    step: 0,
+    isNavigating: false,
+    handlers: null,
+
+    register: function (h) {
+      this.handlers = h;
+    },
+
+    push: function (info) {
+      if (this.isNavigating) return;
+      this.step++;
+      try {
+        window.history.pushState({ spotiflacStep: this.step, info: info || null }, '', window.location.pathname);
+      } catch (e) {
+        console.warn('[Wails Web Shim] pushState failed:', e);
+      }
+    },
+
+    onInAppBack: function () {
+      if (this.isNavigating) return;
+      if (this.step > 0) {
+        this.isNavigating = true;
+        this.step--;
+        try {
+          window.history.back();
+        } catch (e) {}
+        setTimeout(() => { this.isNavigating = false; }, 80);
+      }
+    },
+
+    onInAppForward: function () {
+      if (this.isNavigating) return;
+      this.isNavigating = true;
+      this.step++;
+      try {
+        window.history.forward();
+      } catch (e) {}
+      setTimeout(() => { this.isNavigating = false; }, 80);
+    },
+
+    init: function () {
+      if (this._initialized) return;
+      this._initialized = true;
+
+      try {
+        // Reset base history state on fresh page load/reload
+        window.history.replaceState({ spotiflacStep: 0 }, '', window.location.pathname);
+        this.step = 0;
+      } catch (e) {}
+
+      window.addEventListener('popstate', (e) => {
+        if (this.isNavigating) {
+          this.isNavigating = false;
+          if (e.state && typeof e.state.spotiflacStep === 'number') {
+            this.step = e.state.spotiflacStep;
+          }
+          return;
+        }
+
+        const targetStep = (e.state && typeof e.state.spotiflacStep === 'number') ? e.state.spotiflacStep : 0;
+        const prevStep = this.step;
+        this.step = targetStep;
+
+        this.isNavigating = true;
+        try {
+          if (targetStep < prevStep) {
+            const steps = prevStep - targetStep;
+            for (let s = 0; s < steps; s++) {
+              if (this.handlers && typeof this.handlers.canGoBack === 'function' && !this.handlers.canGoBack()) {
+                break;
+              }
+              if (this.handlers && typeof this.handlers.onBack === 'function') {
+                this.handlers.onBack();
+              } else {
+                // DOM fallback
+                const backBtn = document.querySelector('button[aria-label="Go to previous page"]') ||
+                                document.querySelector('div.fixed.top-1\\.5.left-16 button');
+                if (backBtn && !backBtn.disabled) {
+                  backBtn.click();
+                }
+              }
+            }
+          } else if (targetStep > prevStep) {
+            const steps = targetStep - prevStep;
+            for (let s = 0; s < steps; s++) {
+              if (this.handlers && typeof this.handlers.canGoForward === 'function' && !this.handlers.canGoForward()) {
+                break;
+              }
+              if (this.handlers && typeof this.handlers.onForward === 'function') {
+                this.handlers.onForward();
+              } else {
+                // DOM fallback
+                const forwardBtns = document.querySelectorAll('div.fixed.top-1\\.5.left-16 button');
+                if (forwardBtns && forwardBtns.length >= 2 && !forwardBtns[1].disabled) {
+                  forwardBtns[1].click();
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[Wails Web Shim] Error handling browser history popstate:', err);
+        } finally {
+          setTimeout(() => { this.isNavigating = false; }, 80);
+        }
+      });
+
+      // Keyboard navigation shortcuts: Alt+Left Arrow (back) and Alt+Right Arrow (forward)
+      window.addEventListener('keydown', (e) => {
+        if (e.altKey && e.key === 'ArrowLeft') {
+          if (this.handlers && typeof this.handlers.canGoBack === 'function' && this.handlers.canGoBack()) {
+            e.preventDefault();
+            this.handlers.onBack();
+          }
+        } else if (e.altKey && e.key === 'ArrowRight') {
+          if (this.handlers && typeof this.handlers.canGoForward === 'function' && this.handlers.canGoForward()) {
+            e.preventDefault();
+            this.handlers.onForward();
+          }
+        }
+      });
+    }
+  };
+
+  historyMgr.init();
+  window.__spotiflacHistory = historyMgr;
+
   window.go = createGoProxy();
   console.log("[Wails Web Shim] Loaded successfully. window.runtime and window.go ready.");
 })();

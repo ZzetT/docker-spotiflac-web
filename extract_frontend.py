@@ -183,6 +183,66 @@ def patch_extracted_frontend(target_dir):
             except Exception as ex:
                 print(f"[Extractor] Warning: failed to patch {fname}: {ex}")
 
+        if fname.startswith("index-") and fname.endswith(".js"):
+            fpath = os.path.join(assets_dir, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                if "__spotiflacHistory" in content:
+                    continue
+
+                modified = False
+
+                old_b = 'b=(e,t)=>{let n=vc(t),o={url:e,metadata:n};i.current=[...i.current.slice(0,a.current+1),o],a.current+=1,r(n),v()},x=e=>{let t=a.current+e;if(t<0||t>=i.current.length)return null;a.current=t;let n=i.current[t];return r(n.metadata),v(),n.url};'
+                new_b = 'b=(e,t)=>{let n=vc(t),o={url:e,metadata:n};i.current=[...i.current.slice(0,a.current+1),o],a.current+=1,r(n),v();window.__spotiflacHistory?.push("metadata")},x=e=>{let t=a.current+e;if(t<0||t>=i.current.length)return null;a.current=t;let n=i.current[t];r(n.metadata),v();if(e<0)window.__spotiflacHistory?.onInAppBack();else if(e>0)window.__spotiflacHistory?.onInAppForward();return n.url};'
+                if old_b in content:
+                    content = content.replace(old_b, new_b)
+                    modified = True
+
+                old_cm = 'clearMetadata:(e=``)=>{y(e);let t={url:``,metadata:null};i.current=[...i.current.slice(0,a.current+1),t],a.current+=1,r(null),v()}'
+                new_cm = 'clearMetadata:(e=``)=>{y(e);let t={url:``,metadata:null};i.current=[...i.current.slice(0,a.current+1),t],a.current+=1,r(null),v();window.__spotiflacHistory?.push("metadata")}'
+                if old_cm in content:
+                    content = content.replace(old_cm, new_cm)
+                    modified = True
+
+                old_ea_fn = 'function ea({hasSidebar:e=!0,canGoBack:n=!1,canGoForward:r=!1,navigationDisabled:i=!1,onBack:o,onForward:s,supporterEmail:c=``,onLogout:d}){let p=G()'
+                new_ea_fn = 'function ea({hasSidebar:e=!0,canGoBack:n=!1,canGoForward:r=!1,navigationDisabled:i=!1,onBack:o,onForward:s,supporterEmail:c=``,onLogout:d}){window.__spotiflacHistory?.register({onBack:o,onForward:s,canGoBack:()=>!i&&!!n,canGoForward:()=>!i&&!!r});let p=G()'
+                if old_ea_fn in content:
+                    content = content.replace(old_ea_fn, new_ea_fn)
+                    modified = True
+
+                old_nav = 'Tt=()=>{if(Cl.has(t)){wt(-1);return}t===`main`&&xt()},Et=()=>{if(Cl.has(t)){wt(1);return}t===`main`&&Ct()}'
+                new_nav = 'Tt=()=>{if(Cl.has(t)){if(i.index>0){wt(-1);return}r(`main`);window.__spotiflacHistory?.onInAppBack();return}if(t===`main`){xt();return}r(`main`);window.__spotiflacHistory?.onInAppBack()},Et=()=>{if(Cl.has(t)){wt(1);return}t===`main`&&Ct()}'
+                if old_nav in content:
+                    content = content.replace(old_nav, new_nav)
+                    modified = True
+
+                old_ea = 'canGoBack:Cl.has(t)?i.index>0:t===`main`&&F.canGoBack'
+                new_ea = 'canGoBack:Cl.has(t)?(i.index>0||t!==`main`):t===`main`?F.canGoBack:!0'
+                if old_ea in content:
+                    content = content.replace(old_ea, new_ea)
+                    modified = True
+
+                old_ot = 'Ot=e=>{e!==t&&('
+                new_ot = 'Ot=e=>{e!==t&&(window.__spotiflacHistory?.push("page"),'
+                if old_ot in content:
+                    content = content.replace(old_ot, new_ot)
+                    modified = True
+
+                old_wt = 'a(e=>({...e,index:t})),r(n))}'
+                new_wt = 'a(e=>({...e,index:t})),r(n),e<0?window.__spotiflacHistory?.onInAppBack():window.__spotiflacHistory?.onInAppForward())}'
+                if old_wt in content:
+                    content = content.replace(old_wt, new_wt)
+                    modified = True
+
+                if modified:
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    print(f"[Extractor] Patched browser back/forward history navigation in {fname}")
+            except Exception as ex:
+                print(f"[Extractor] Warning: failed to patch history in {fname}: {ex}")
+
 def extract_from_appimage(appimage_path, target_dir, shim_source=None):
     """
     Extracts the binary from an AppImage and then extracts its frontend assets.
