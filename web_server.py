@@ -15,6 +15,8 @@ import threading
 import time
 import http.client
 import urllib.parse
+import zipfile
+import tempfile
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 # Configure proper MIME types
@@ -25,6 +27,12 @@ mimetypes.add_type("image/svg+xml", ".svg")
 mimetypes.add_type("application/json", ".json")
 mimetypes.add_type("image/png", ".png")
 mimetypes.add_type("image/x-icon", ".ico")
+mimetypes.add_type("audio/flac", ".flac")
+mimetypes.add_type("audio/mpeg", ".mp3")
+mimetypes.add_type("audio/mp4", ".m4a")
+mimetypes.add_type("audio/ogg", ".ogg")
+mimetypes.add_type("audio/wav", ".wav")
+mimetypes.add_type("text/plain", ".lrc")
 
 BRIDGE_URL = os.environ.get("BRIDGE_URL", "http://127.0.0.1:8081")
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
@@ -38,6 +46,39 @@ sse_clients_lock = threading.Lock()
 event_history = []
 event_history_lock = threading.Lock()
 MAX_EVENT_HISTORY = 300
+
+def format_file_size(size_bytes: int) -> str:
+    if size_bytes <= 0:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    i = 0
+    size = float(size_bytes)
+    while size >= 1024.0 and i < len(units) - 1:
+        size /= 1024.0
+        i += 1
+    return f"{size:.1f} {units[i]}"
+
+def resolve_target_path(target: str) -> str:
+    target = (target or "").strip()
+    if not target:
+        target = "/root/Music"
+    if os.path.exists(target):
+        return os.path.abspath(target)
+    # Map container /root/Music to local downloads directory if outside Docker
+    local_downloads = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads")
+    if target.startswith("/root/Music"):
+        rel = os.path.relpath(target, "/root/Music")
+        cand = os.path.normpath(os.path.join(local_downloads, rel))
+        if os.path.exists(cand):
+            return cand
+    elif target.startswith("./downloads") or target.startswith("downloads"):
+        rel = target.lstrip("./").lstrip("downloads").lstrip("/")
+        cand = os.path.normpath(os.path.join(local_downloads, rel))
+        if os.path.exists(cand):
+            return cand
+    if os.path.exists(local_downloads):
+        return local_downloads
+    return target
 
 EVENT_HOOK_JS = """
 (function() {
@@ -206,20 +247,19 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
 
         # Target Container Directory Browser API (for headless web UI folder picker)
         if clean_path == "/api/target/folders":
-            from urllib.parse import parse_qs, urlparse
-            query = parse_qs(urlparse(self.path).query)
+            query = urllib.parse.parse_qs(parsed_url.query)
             target = query.get("path", ["/root/Music"])[0].strip() or "/root/Music"
-            if not os.path.isabs(target):
-                target = "/root/Music"
-            if not os.path.isdir(target):
-                if os.path.isdir("/root/Music"):
-                    target = "/root/Music"
+            resolved = resolve_target_path(target)
+            if not os.path.isdir(resolved):
+                default_resolved = resolve_target_path("/root/Music")
+                if os.path.isdir(default_resolved):
+                    resolved = default_resolved
                 else:
-                    target = "/"
+                    resolved = "/"
             try:
                 folders = []
-                parent = os.path.dirname(os.path.normpath(target))
-                with os.scandir(target) as it:
+                parent = os.path.dirname(os.path.normpath(resolved))
+                with os.scandir(resolved) as it:
                     for entry in it:
                         try:
                             if entry.is_dir(follow_symlinks=True):
@@ -228,8 +268,8 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
                             pass
                 folders.sort(key=lambda x: x["name"].lower())
                 self.send_json({
-                    "current": os.path.normpath(target),
-                    "parent": parent if parent != os.path.normpath(target) else None,
+                    "current": os.path.normpath(resolved),
+                    "parent": parent if parent != os.path.normpath(resolved) else None,
                     "folders": folders
                 })
             except Exception as e:
@@ -240,6 +280,255 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
                     "error": str(e)
                 }, status=500)
             return
+
+        # Target Container File & Directory Inspector API (for in-app artifact folder inspector)
+        if clean_path == "/api/target/files":
+            query = urllib.parse.parse_qs(parsed_url.query)
+            target = query.get("path", ["/root/Music"])[0].strip() or "/root/Music"
+            resolved = resolve_target_path(target)
+            focused_file = None
+            if os.path.isfile(resolved):
+                focused_file = os.path.basename(resolved)
+                resolved = os.path.dirname(resolved)
+            elif not os.path.exists(resolved):
+                parent_dir = os.path.dirname(resolved)
+                if os.path.isdir(parent_dir):
+                    resolved = parent_dir
+                else:
+                    resolved = resolve_target_path("/root/Music")
+
+            try:
+                folders = []
+                files = []
+                total_size = 0
+                audio_count = 0
+                lyrics_count = 0
+                image_count = 0
+                parent = os.path.dirname(os.path.normpath(resolved))
+
+                audio_exts = {".flac", ".mp3", ".m4a", ".wav", ".ogg", ".aac", ".alac", ".aiff", ".opus"}
+                lyrics_exts = {".lrc", ".txt"}
+                image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+
+                with os.scandir(resolved) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_dir(follow_symlinks=True):
+                                child_count = 0
+                                child_size = 0
+                                try:
+                                    with os.scandir(entry.path) as sub_it:
+                                        for s_entry in sub_it:
+                                            child_count += 1
+                                            if s_entry.is_file(follow_symlinks=True):
+                                                child_size += s_entry.stat().st_size
+                                except Exception:
+                                    pass
+                                folders.append({
+                                    "name": entry.name,
+                                    "path": entry.path,
+                                    "count": child_count,
+                                    "size": child_size,
+                                    "formatted_size": format_file_size(child_size)
+                                })
+                            elif entry.is_file(follow_symlinks=True):
+                                stat = entry.stat()
+                                sz = stat.st_size
+                                total_size += sz
+                                ext = os.path.splitext(entry.name)[1].lower()
+                                if ext in audio_exts:
+                                    ftype = "audio"
+                                    audio_count += 1
+                                elif ext in lyrics_exts:
+                                    ftype = "lyrics"
+                                    lyrics_count += 1
+                                elif ext in image_exts:
+                                    ftype = "image"
+                                    image_count += 1
+                                else:
+                                    ftype = "other"
+
+                                files.append({
+                                    "name": entry.name,
+                                    "path": entry.path,
+                                    "size": sz,
+                                    "formatted_size": format_file_size(sz),
+                                    "ext": ext.lstrip(".").upper(),
+                                    "type": ftype,
+                                    "mtime": int(stat.st_mtime),
+                                    "url": f"/api/target/file/raw?path={urllib.parse.quote(entry.path)}",
+                                    "download_url": f"/api/target/file/raw?download=1&path={urllib.parse.quote(entry.path)}"
+                                })
+                        except Exception:
+                            pass
+
+                folders.sort(key=lambda x: x["name"].lower())
+                type_priority = {"audio": 0, "lyrics": 1, "image": 2, "other": 3}
+                files.sort(key=lambda x: (type_priority.get(x["type"], 9), x["name"].lower()))
+
+                folder_name = os.path.basename(os.path.normpath(resolved)) or "Music"
+
+                self.send_json({
+                    "success": True,
+                    "current": os.path.normpath(resolved),
+                    "original_path": target,
+                    "folder_name": folder_name,
+                    "parent": parent if parent != os.path.normpath(resolved) else None,
+                    "total_files": len(files),
+                    "total_size": total_size,
+                    "formatted_total_size": format_file_size(total_size),
+                    "audio_count": audio_count,
+                    "lyrics_count": lyrics_count,
+                    "image_count": image_count,
+                    "focused_file": focused_file,
+                    "folders": folders,
+                    "files": files,
+                    "zip_url": f"/api/target/zip?path={urllib.parse.quote(resolved)}"
+                })
+            except Exception as e:
+                self.send_json({
+                    "success": False,
+                    "current": target,
+                    "error": str(e),
+                    "folders": [],
+                    "files": []
+                }, status=500)
+            return
+
+        # Target Container File Streaming & Direct Download API (supports HTTP Range for audio seeking)
+        if clean_path == "/api/target/file/raw":
+            query = urllib.parse.parse_qs(parsed_url.query)
+            target = query.get("path", [""])[0].strip()
+            is_download = query.get("download", ["0"])[0] == "1"
+            if not target:
+                self.send_json({"error": "Path parameter is required"}, status=400)
+                return
+
+            resolved = resolve_target_path(target)
+            if not os.path.isfile(resolved):
+                self.send_json({"error": f"File not found: {target}"}, status=404)
+                return
+
+            try:
+                file_size = os.path.getsize(resolved)
+                mime_type, _ = mimetypes.guess_type(resolved)
+                if not mime_type:
+                    ext = os.path.splitext(resolved)[1].lower()
+                    if ext == ".flac":
+                        mime_type = "audio/flac"
+                    elif ext == ".lrc":
+                        mime_type = "text/plain; charset=utf-8"
+                    elif ext in (".m4a", ".alac"):
+                        mime_type = "audio/mp4"
+                    else:
+                        mime_type = "application/octet-stream"
+
+                range_header = self.headers.get("Range")
+                if range_header and range_header.startswith("bytes="):
+                    range_val = range_header[6:].strip()
+                    parts = range_val.split("-")
+                    start = int(parts[0]) if parts[0] else 0
+                    end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+
+                    if start >= file_size or end >= file_size or start > end:
+                        self.send_response(416)
+                        self.send_header("Content-Range", f"bytes */{file_size}")
+                        self.end_headers()
+                        return
+
+                    length = end - start + 1
+                    self.send_response(206)
+                    self.send_header("Content-Type", mime_type)
+                    self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+                    self.send_header("Content-Length", str(length))
+                    self.send_header("Accept-Ranges", "bytes")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    if is_download:
+                        filename = os.path.basename(resolved)
+                        self.send_header("Content-Disposition", f'attachment; filename="{urllib.parse.quote(filename)}"')
+                    self.end_headers()
+
+                    with open(resolved, "rb") as f:
+                        f.seek(start)
+                        remaining = length
+                        while remaining > 0:
+                            chunk_size = min(65536, remaining)
+                            chunk = f.read(chunk_size)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                            remaining -= len(chunk)
+                    return
+
+                self.send_response(200)
+                self.send_header("Content-Type", mime_type)
+                self.send_header("Content-Length", str(file_size))
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                if is_download:
+                    filename = os.path.basename(resolved)
+                    self.send_header("Content-Disposition", f'attachment; filename="{urllib.parse.quote(filename)}"')
+                self.end_headers()
+
+                with open(resolved, "rb") as f:
+                    while True:
+                        chunk = f.read(65536)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                return
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=500)
+                return
+
+        # Target Container Folder ZIP Archive Download API
+        if clean_path == "/api/target/zip":
+            query = urllib.parse.parse_qs(parsed_url.query)
+            target = query.get("path", [""])[0].strip()
+            if not target:
+                self.send_json({"error": "Path parameter is required"}, status=400)
+                return
+
+            resolved = resolve_target_path(target)
+            if os.path.isfile(resolved):
+                resolved = os.path.dirname(resolved)
+
+            if not os.path.isdir(resolved):
+                self.send_json({"error": f"Directory not found: {target}"}, status=404)
+                return
+
+            try:
+                folder_name = os.path.basename(os.path.normpath(resolved)) or "Music"
+                zip_filename = f"{folder_name}.zip"
+
+                with tempfile.NamedTemporaryFile(suffix=".zip") as tmp_zip:
+                    with zipfile.ZipFile(tmp_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                        for root, dirs, files in os.walk(resolved):
+                            for f in files:
+                                full_fpath = os.path.join(root, f)
+                                rel_fpath = os.path.relpath(full_fpath, resolved)
+                                zf.write(full_fpath, arcname=rel_fpath)
+                    tmp_zip.seek(0)
+                    zip_size = os.path.getsize(tmp_zip.name)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/zip")
+                    self.send_header("Content-Disposition", f'attachment; filename="{urllib.parse.quote(zip_filename)}"')
+                    self.send_header("Content-Length", str(zip_size))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    while True:
+                        chunk = tmp_zip.read(65536)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                return
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=500)
+                return
 
         # Check if actual static file exists in WEB_DIR
         local_file_path = os.path.normpath(os.path.join(WEB_DIR, clean_path.lstrip("/")))
@@ -515,10 +804,18 @@ class SpotiFLACRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_HEAD(self):
+        if self.path.startswith("/api/"):
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            return
+        super().do_HEAD()
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, x-wails-client-id, x-wails-window-name, x-wails-chunk-id, x-wails-chunk-index, x-wails-chunk-total")
         self.end_headers()
 
